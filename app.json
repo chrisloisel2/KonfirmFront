@@ -1,0 +1,61 @@
+{
+  "expo": {
+    "name": "Konfirm",
+    "slug": "konfirm",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "light",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.konfirm.app",
+      "infoPlist": {
+        "NSCameraUsageDescription": "Cette application utilise l'appareil photo pour scanner les documents d'identité",
+        "NSPhotoLibraryUsageDescription": "Cette application accède aux photos pour traiter les documents d'identité"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#FFFFFF"
+      },
+      "package": "com.konfirm.app",
+      "permissions": [
+        "android.permission.CAMERA",
+        "android.permission.RECORD_AUDIO",
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE"
+      ]
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Permettre à Konfirm d'accéder à votre appareil photo pour scanner les documents d'identité."
+        }
+      ],
+      [
+        "expo-media-library",
+        {
+          "photosPermission": "Permettre à Konfirm d'accéder aux photos pour traiter les documents d'identité.",
+          "savePhotosPermission": "Permettre à Konfirm de sauvegarder les documents scannés.",
+          "isAccessMediaLocationEnabled": true
+        }
+      ],
+      "expo-secure-store",
+      "expo-sharing",
+      "expo-font"
+    ]
+  }
+}
