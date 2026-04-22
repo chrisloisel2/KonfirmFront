@@ -10,7 +10,7 @@ import AppHeader from '../components/AppHeader';
 import { useAuth } from '../../shared/services/AuthContext';
 import { colors, spacing, radius, shadows, typography } from '../../shared/theme/theme';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { API_BASE } from '../../shared/config/api';
 
 type ActiveTab = 'osint' | 'fuzzy';
 type SubjectType = 'PERSON' | 'COMPANY' | 'MIXED';

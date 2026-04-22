@@ -7,6 +7,7 @@ import { Text } from 'react-native-paper';
 import { useAuth } from '../../shared/services/AuthContext';
 import { colors, spacing, radius, shadows, typography } from '../../shared/theme/theme';
 import { MaterialIcons } from '@expo/vector-icons';
+import { API_BASE } from '../../shared/config/api';
 
 interface Branch { id: string; name: string; address?: string; code?: string; isActive: boolean; }
 
@@ -19,7 +20,7 @@ export default function BranchSelectionScreen() {
 
   useEffect(() => {
     if (!token) { setLoading(false); return; }
-    fetch('http://localhost:3001/api/settings/shops', {
+    fetch(`${API_BASE}/settings/shops`, {
       headers: { Authorization: `Bearer ${token}` },
     })
       .then(r => r.json())

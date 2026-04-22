@@ -32,7 +32,8 @@ export type AppScreen =
   | 'OCRProcessing'
   | 'SearchDetail'
   | 'DossierBloque'
-  | 'EscaladeSuperieur';
+  | 'EscaladeSuperieur'
+  | 'Archivage';
 
 const CONSEILLER_SCREENS: AppScreen[] = [
   'Dashboard',
@@ -61,8 +62,8 @@ const REFERENT_SCREENS: AppScreen[] = [
   'ResearchHub',
   'UniversalSearch',
   'SearchDetail',
-  // REFERENT peut gérer les Watchlists/Blacklists et consulter les anciens dossiers
   'Watchlists',
+  'Archivage',
 ];
 
 const RESPONSABLE_SCREENS: AppScreen[] = [

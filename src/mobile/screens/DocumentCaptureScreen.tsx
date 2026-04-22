@@ -8,6 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { colors, spacing, radius } from '../../shared/theme/theme';
 import { useAuth } from '../../shared/services/AuthContext';
+import { API_BASE } from '../../shared/config/api';
 
 const { width: screenWidth } = Dimensions.get('window');
 
@@ -155,7 +156,7 @@ export default function DocumentCaptureScreen() {
     const headers: Record<string, string> = token
       ? { Authorization: `Bearer ${token}` }
       : {};
-    const API = 'http://localhost:3001/api/documents/extract-identity';
+    const API = `${API_BASE}/documents/extract-identity`;
     const dt  = docType ?? 'cni';
 
     // ── Tentative 1 : multipart  ────────────────────────────────────────────

@@ -1,8 +1,7 @@
 import React, { createContext, useContext, useReducer, useEffect } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { User, UserRole, ApiResponse, LoginResponse, SignupResponse } from '../types';
-
-const API_BASE = 'http://localhost:3001/api';
+import { API_BASE } from '../config/api';
 
 interface AuthState {
   user: User | null;

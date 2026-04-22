@@ -12,6 +12,7 @@ import { colors, spacing, radius, shadows, typography } from '../../shared/theme
 import { MaterialIcons } from '@expo/vector-icons';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../../shared/services/AuthContext';
+import { API_BASE } from '../../shared/config/api';
 
 // Interface étendue pour conformité LCB-FT GODECHOT PAULIET
 interface NewDossierForm {
@@ -234,7 +235,7 @@ export default function NewDossierScreen() {
         seuilLCBFT: seuilInfo?.type || 'sans_seuil',
       };
 
-      const response = await fetch('http://localhost:3001/api/dossiers/drafts', {
+      const response = await fetch(`${API_BASE}/dossiers/drafts`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

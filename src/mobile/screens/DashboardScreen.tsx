@@ -17,7 +17,7 @@ import { colors, radius, shadows, spacing, typography } from '../../shared/theme
 import { ROLE_META, canRoleAccess, AppScreen } from '../../shared/config/rolePermissions';
 import { UserRole } from '../../shared/types';
 
-const API_BASE = 'http://localhost:3001/api';
+import { API_BASE } from '../../shared/config/api';
 
 interface OperationalKpis {
   dossiersAujourdhui: number;

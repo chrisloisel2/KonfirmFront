@@ -9,6 +9,7 @@
 import * as Print from 'expo-print';
 import * as Sharing from 'expo-sharing';
 import { Recherche, ScoringResult } from '../types';
+import { uploadPdfPourArchivage } from './archivageApiService';
 
 type VerificationStatus = 'clear' | 'alert' | 'warning' | 'pending' | 'error';
 type Category = 'document' | 'sanctions' | 'pep' | 'reputation' | 'judicial';
@@ -67,6 +68,7 @@ export interface ReportInput {
 	};
 	agentName?: string;
 	branchName?: string;
+	authToken?: string;
 }
 
 const STATUS_META: Record<VerificationStatus, { label: string; color: string; bg: string }> = {
@@ -825,9 +827,45 @@ function buildHtml(input: ReportInput): string {
 export async function generateAndSharePDF(input: ReportInput): Promise<void> {
 	const html = buildHtml(input);
 	const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+	// Partage immédiat avec l'utilisateur
 	await Sharing.shareAsync(uri, {
 		mimeType: 'application/pdf',
 		dialogTitle: `Compte rendu conformité — ${input.dossierId}`,
 		UTI: 'com.adobe.pdf',
 	});
+
+	// Archivage asynchrone côté serveur (non-bloquant)
+	if (input.authToken) {
+		uploadPdfPourArchivage(input.dossierId, uri, input.authToken).catch(() => {
+			// Silencieux : l'archivage automatique sera déclenché côté backend
+			// lors de la transition de statut. Cet upload est un complément.
+		});
+	}
+}
+
+/**
+ * Génère, partage et archive le PDF de conformité en une seule opération.
+ * Retourne le résultat de l'archivage si disponible.
+ */
+export async function generateShareAndArchive(
+	input: ReportInput & { authToken: string }
+): Promise<{ shared: true; archived: boolean }> {
+	const html = buildHtml(input);
+	const { uri } = await Print.printToFileAsync({ html, base64: false });
+
+	// Partage
+	await Sharing.shareAsync(uri, {
+		mimeType: 'application/pdf',
+		dialogTitle: `Compte rendu conformité — ${input.dossierId}`,
+		UTI: 'com.adobe.pdf',
+	});
+
+	// Archivage
+	try {
+		await uploadPdfPourArchivage(input.dossierId, uri, input.authToken);
+		return { shared: true, archived: true };
+	} catch {
+		return { shared: true, archived: false };
+	}
 }

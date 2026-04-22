@@ -9,7 +9,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ScoringResult, DecisionType } from '../../shared/types';
 import { colors, spacing, radius, shadows, typography } from '../../shared/theme/theme';
 import AppHeader from '../components/AppHeader';
-import { generateAndSharePDF } from '../../shared/services/pdfReportService';
+import { generateShareAndArchive } from '../../shared/services/pdfReportService';
+import { useAuth } from '../../shared/services/AuthContext';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -307,6 +308,7 @@ const ssStyles = StyleSheet.create({
 export default function ScoringScreen() {
   const navigation = useNavigation();
   const route      = useRoute();
+  const { token }  = useAuth();
   const { dossierId, dossierData, recherches = [] } = (route.params as RouteParams) || {};
 
   const [scoring, setScoring]         = useState<ScoringResult | null>(null);
@@ -375,7 +377,7 @@ export default function ScoringScreen() {
     try {
       const verResults: VerificationResult[] = dossierData?.identity?.verificationResults ?? [];
       const identity = dossierData?.identity ?? {};
-      await generateAndSharePDF({
+      const result = await generateShareAndArchive({
         dossierId: scoring.dossierId,
         finalStatus: scoring.decision === 'auto_validated' ? 'validated'
           : scoring.decision === 'blocage' ? 'blocked'
@@ -401,12 +403,33 @@ export default function ScoringScreen() {
         verificationResults: verResults,
         recherches:          recherches ?? [],
         scoring,
+        authToken: token ?? undefined,
       });
+      if (result.archived) {
+        Alert.alert(
+          'PDF archivé',
+          'Le rapport a été scellé, horodaté et déposé dans le stockage sécurisé LCB-FT.',
+          [{ text: 'OK' }]
+        );
+      }
     } catch (e: any) {
       Alert.alert('Erreur', e?.message ?? 'Impossible de générer le rapport');
     } finally {
       setPdfLoading(false);
     }
+  };
+
+  const goToArchives = () => {
+    const numeroDossier = dossierData?.numero ?? dossierId ?? '';
+    const clientNom = dossierData?.identity
+      ? `${dossierData.identity.nom ?? ''} ${dossierData.identity.prenom ?? ''}`.trim()
+      : undefined;
+    // @ts-ignore
+    navigation.navigate('Archivage', {
+      dossierId: scoring?.dossierId ?? dossierId,
+      numeroDossier,
+      clientNom
+    });
   };
 
   /* ── Loading ── */
@@ -606,6 +629,14 @@ export default function ScoringScreen() {
           <Text style={styles.pdfBtnText}>{pdfLoading ? 'Génération…' : 'Rapport PDF'}</Text>
         </TouchableOpacity>
         <TouchableOpacity
+          style={styles.archivesBtn}
+          onPress={goToArchives}
+          activeOpacity={0.75}
+        >
+          <MaterialIcons name="workspace-premium" size={17} color={colors.accent} />
+          <Text style={styles.archivesBtnText}>Archives</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.ctaBtn, { backgroundColor: meta.color }]}
           onPress={proceed}
           activeOpacity={0.85}
@@ -712,6 +743,14 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: colors.borderLight,
   },
   pdfBtnText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
+  archivesBtn: {
+    height: 52, borderRadius: radius.md,
+    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
+    paddingHorizontal: spacing[3],
+    backgroundColor: 'transparent',
+    borderWidth: 1, borderColor: colors.accent,
+  },
+  archivesBtnText: { fontSize: 13, fontWeight: '600', color: colors.accent },
   ctaBtn: {
     height: 52, borderRadius: radius.md,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,

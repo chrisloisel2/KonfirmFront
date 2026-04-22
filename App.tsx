@@ -27,6 +27,7 @@ import IdentityVerificationScreen from './src/mobile/screens/IdentityVerificatio
 import ValidationFinalScreen from './src/mobile/screens/ValidationFinalScreen';
 import InvestigationToolsScreen from './src/mobile/screens/InvestigationToolsScreen';
 import SettingsScreen from './src/mobile/screens/SettingsScreen';
+import ArchivageScreen from './src/mobile/screens/ArchivageScreen';
 
 import { AuthProvider, useAuth } from './src/shared/services/AuthContext';
 import { theme } from './src/shared/theme/theme';
@@ -59,6 +60,7 @@ const ALL_APP_SCREENS: { name: AppScreen; component: React.ComponentType<any> }[
   { name: 'IntelligenceReport',   component: IntelligenceReportScreen },
   { name: 'InvestigationTools',   component: InvestigationToolsScreen },
   { name: 'Settings',             component: SettingsScreen },
+  { name: 'Archivage',            component: ArchivageScreen },
 ];
 
 function AppNavigator() {

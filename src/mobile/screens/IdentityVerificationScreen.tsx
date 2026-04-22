@@ -8,6 +8,7 @@ import { useNavigation, useRoute } from '@react-navigation/native';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useAuth } from '../../shared/services/AuthContext';
 import { colors, spacing, radius, shadows, typography } from '../../shared/theme/theme';
+import { API_BASE } from '../../shared/config/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -181,7 +182,7 @@ export default function IdentityVerificationScreen() {
     scoreAnim.setValue(0);
     fadeAnim.setValue(0);
     try {
-      const res = await fetch('http://localhost:3001/api/verification/identity', {
+      const res = await fetch(`${API_BASE}/verification/identity`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
         body: JSON.stringify({ ...idData, docType, dossierId: dossierData?.id }),
@@ -228,7 +229,7 @@ export default function IdentityVerificationScreen() {
       setIsPersisting(true);
 
       try {
-        const res = await fetch(`http://localhost:3001/api/dossiers/${dossierData.id}/identity`, {
+        const res = await fetch(`${API_BASE}/dossiers/${dossierData.id}/identity`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
           body: JSON.stringify({

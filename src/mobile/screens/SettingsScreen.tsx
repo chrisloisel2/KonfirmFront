@@ -17,7 +17,7 @@ import { useAuth } from '../../shared/services/AuthContext';
 import { colors, radius, spacing, typography } from '../../shared/theme/theme';
 import type { AccountUser, Company, CompanyUsage, Shop, Subscription } from '../../shared/types';
 
-const API_BASE = 'http://localhost:3001/api';
+import { API_BASE } from '../../shared/config/api';
 
 type Tab = 'accounts' | 'shops' | 'subscription';
 

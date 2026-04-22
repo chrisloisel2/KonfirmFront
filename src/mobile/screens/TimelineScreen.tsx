@@ -10,7 +10,7 @@ import { colors } from '../../shared/theme/theme';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../../shared/services/AuthContext';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { API_BASE } from '../../shared/config/api';
 
 const EVENT_ICONS: Record<string, string> = {
 	DOSSIER_CREATED:    'create-new-folder',

@@ -10,7 +10,7 @@ import { colors, spacing, typography } from '../../shared/theme/theme';
 import AppHeader from '../components/AppHeader';
 import { useAuth } from '../../shared/services/AuthContext';
 
-const API_BASE = process.env.EXPO_PUBLIC_API_URL || 'http://localhost:3001/api';
+import { API_BASE } from '../../shared/config/api';
 
 type EntityType = 'CLIENT' | 'DOSSIER' | 'DOCUMENT' | 'EXCEPTION' | 'TRACFIN' | 'AUDIT' | 'RECHERCHE' | 'SCORING';
 
