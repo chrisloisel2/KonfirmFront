@@ -1,3 +1,6 @@
+// Must be first — initializes gesture handler before any navigation code
+import 'react-native-gesture-handler';
+
 import { registerRootComponent } from 'expo';
 import App from './App';
 

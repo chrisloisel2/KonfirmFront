@@ -86,6 +86,11 @@ export const typography = {
   micro:   { fontFamily: fonts.interfaceMedium,  fontSize: 10, fontWeight: '500' as const, letterSpacing: 1.0, lineHeight: 14 },
   button:  { fontFamily: fonts.interfaceMedium,  fontSize: 14, fontWeight: '500' as const, letterSpacing: 0.2, lineHeight: 20 },
   mono:    { fontFamily: fonts.mono,             fontSize: 11, fontWeight: '400' as const, color: colors.gold },
+  families: {
+    display: fonts.display,
+    ui:      fonts.interface,
+    mono:    fonts.mono,
+  },
 };
 
 // ===== SPACING (base unit: 4px) =====

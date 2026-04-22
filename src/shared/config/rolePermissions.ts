@@ -117,7 +117,7 @@ export const ROLE_META: Record<UserRole, RoleMeta> = {
   },
   responsable: {
     label: 'Responsable',
-    description: 'Gère l\'abonnement, les sites physiques, supervise tous les employés et accède aux KPI globaux',
+    description: 'Supervise tous les employés et accède aux KPI globaux',
     color: '#1A6B50',
     quickActions: ['Settings', 'InvestigationTools', 'BatchSearch', 'IntelligenceReport'],
   },

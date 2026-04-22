@@ -166,6 +166,25 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [state, dispatch] = useReducer(authReducer, initialState);
 
+  // Intercepteur global : tout fetch vers /api/ qui répond 401 → logout automatique
+  useEffect(() => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+      const response = await originalFetch(...args);
+      if (response.status === 401 && String(args[0]).includes('/api/')) {
+        await AsyncStorage.multiRemove([
+          STORAGE_KEYS.token,
+          STORAGE_KEYS.user,
+          STORAGE_KEYS.role,
+          STORAGE_KEYS.branch,
+        ]);
+        dispatch({ type: 'LOGOUT' });
+      }
+      return response;
+    };
+    return () => { globalThis.fetch = originalFetch; };
+  }, []);
+
   // Restaurer l'authentification au démarrage
   useEffect(() => {
     restoreAuth();

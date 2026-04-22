@@ -8,7 +8,7 @@ ARG EXPO_PUBLIC_API_URL=/api
 ENV EXPO_PUBLIC_API_URL=$EXPO_PUBLIC_API_URL
 
 COPY package*.json ./
-RUN npm ci
+RUN npm install --legacy-peer-deps
 
 COPY . .
 
@@ -17,6 +17,9 @@ RUN npx expo export --platform web
 
 # ── Stage 2: serve ────────────────────────────────────────────────────────────
 FROM nginx:alpine AS runner
+
+# curl needed for the Docker health check
+RUN apk add --no-cache curl
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
