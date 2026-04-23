@@ -1,12 +1,13 @@
 import React from 'react';
-import { View } from 'react-native';
+import { View, TouchableOpacity, StyleSheet } from 'react-native';
 import { Text } from 'react-native-paper';
 import { MaterialIcons } from '@expo/vector-icons';
-import { colors } from '../../../../shared/theme/theme';
+import { colors, radius } from '../../../../shared/theme/theme';
 import { OperationalKpis, DashboardPayload } from '../types';
 import { euros, humanDate } from '../helpers';
 import { KpiCard, KpiGaugeArc, KpiDonutDossiers, KpiAlertGauges, ShortcutTile, SectionRow, StatusBadge } from '../components';
 import { st } from '../styles';
+import DossierPdfModal from '../../../components/DossierPdfModal';
 
 // ── KpiSection ─────────────────────────────────────────────────────────────────
 // Visible par tous les rôles ; les cartes affichées varient selon le niveau.
@@ -132,20 +133,62 @@ export function RecentDossiersSection({ dossiers }: RecentDossiersSectionProps) 
             </View>
             <StatusBadge status={d.status} />
           </View>
-          <View style={st.cardMeta}>
-            {d.montantInitial != null && (
+          <View style={[st.cardMeta, localSt.cardFooter]}>
+            <View style={localSt.chips}>
+              {d.montantInitial != null && (
+                <View style={st.metaChip}>
+                  <MaterialIcons name="euro" size={12} color={colors.textTertiary} />
+                  <Text style={st.metaChipText}>{euros(d.montantInitial * 100)}</Text>
+                </View>
+              )}
               <View style={st.metaChip}>
-                <MaterialIcons name="euro" size={12} color={colors.textTertiary} />
-                <Text style={st.metaChipText}>{euros(d.montantInitial * 100)}</Text>
+                <MaterialIcons name="schedule" size={12} color={colors.textTertiary} />
+                <Text style={st.metaChipText}>{humanDate(d.updatedAt)}</Text>
               </View>
-            )}
-            <View style={st.metaChip}>
-              <MaterialIcons name="schedule" size={12} color={colors.textTertiary} />
-              <Text style={st.metaChipText}>{humanDate(d.updatedAt)}</Text>
             </View>
+
+            <DossierPdfModal dossierId={d.id} numeroDossier={d.numero}>
+              {(open: () => void) => (
+                <TouchableOpacity style={localSt.pdfBtn} onPress={open} activeOpacity={0.75}>
+                  <MaterialIcons name="picture-as-pdf" size={13} color={colors.error} />
+                  <Text style={localSt.pdfBtnText}>PDF</Text>
+                </TouchableOpacity>
+              )}
+            </DossierPdfModal>
           </View>
         </View>
       ))}
     </View>
   );
 }
+
+const localSt = StyleSheet.create({
+  cardFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  chips: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    flexWrap: 'wrap',
+    flex: 1,
+  },
+  pdfBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: radius.sm,
+    backgroundColor: '#FEF2F2',
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  pdfBtnText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: colors.error,
+  },
+});
