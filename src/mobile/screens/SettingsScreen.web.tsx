@@ -11,8 +11,7 @@ import {
   View,
 } from 'react-native';
 import { Text } from 'react-native-paper';
-import Reanimated, { FadeInDown, FadeIn } from 'react-native-reanimated';
-import Svg, { Circle, Path, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle } from 'react-native-svg';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -42,55 +41,38 @@ const STATUS_META: Record<string, { color: string; bg: string; label: string }> 
   SUSPENDED: { color: '#4A5E74', bg: '#F0EDE5', label: 'Suspendu' },
 };
 
-// ─── SVG role donut ────────────────────────────────────────────────────────────
+// ─── Role distribution (web-safe, no echarts) ──────────────────────────────────
 
-function polar(cx: number, cy: number, r: number, deg: number) {
-  const rad = ((deg - 90) * Math.PI) / 180;
-  return { x: cx + r * Math.cos(rad), y: cy + r * Math.sin(rad) };
-}
-
-function arcSegment(cx: number, cy: number, iR: number, oR: number, s: number, e: number): string {
-  const span = e - s;
-  if (span <= 0.1) return '';
-  const gap = span > 8 ? 2 : 0;
-  const a = s + gap; const b = e - gap;
-  const o1 = polar(cx, cy, oR, a); const o2 = polar(cx, cy, oR, b);
-  const i1 = polar(cx, cy, iR, b); const i2 = polar(cx, cy, iR, a);
-  const lg = (b - a) > 180 ? 1 : 0;
-  return `M${o1.x.toFixed(2)},${o1.y.toFixed(2)} A${oR},${oR},0,${lg},1,${o2.x.toFixed(2)},${o2.y.toFixed(2)} L${i1.x.toFixed(2)},${i1.y.toFixed(2)} A${iR},${iR},0,${lg},0,${i2.x.toFixed(2)},${i2.y.toFixed(2)} Z`;
-}
-
-function RoleDonut({ accounts, size = 110 }: { accounts: AccountUser[]; size?: number }) {
+function RoleDonut({ accounts }: { accounts: AccountUser[] }) {
   const roleCount = accounts.reduce<Record<string, number>>((acc, u) => {
     acc[u.role] = (acc[u.role] ?? 0) + 1;
     return acc;
   }, {});
-  const data = Object.entries(roleCount)
-    .filter(([, v]) => v > 0)
-    .map(([r, v]) => ({ value: v, color: ROLE_META[r]?.color ?? '#ccc' }));
+  const total = accounts.length;
+  const entries = Object.entries(roleCount).filter(([, v]) => v > 0);
 
-  if (data.length === 0) return <View style={{ width: size, height: size }} />;
-
-  const total = data.reduce((s, d) => s + d.value, 0);
-  const cx = size / 2;
-  const cy = size / 2;
-  const outerR = size * 0.41;
-  const innerR = outerR * 0.71;
-
-  let angle = 0;
-  const arcs = data.map(d => {
-    const start = angle;
-    const span = (d.value / total) * 360;
-    angle += span;
-    return { ...d, start, end: angle };
-  });
+  if (entries.length === 0) return <View style={{ width: 110, height: 110 }} />;
 
   return (
-    <Svg width={size} height={size}>
-      {arcs.map((s, i) => (
-        <Path key={i} d={arcSegment(cx, cy, innerR, outerR, s.start, s.end)} fill={s.color} />
-      ))}
-    </Svg>
+    <View style={{ width: 110, height: 110, justifyContent: 'center', gap: 8 }}>
+      {entries.map(([r, n]) => {
+        const pct = total > 0 ? Math.round((n / total) * 100) : 0;
+        const color = ROLE_META[r]?.color ?? '#ccc';
+        const barW = Math.max((pct / 100) * 90, 6);
+        return (
+          <View key={r} style={{ gap: 2 }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+              <View style={{ width: 6, height: 6, borderRadius: 3, backgroundColor: color }} />
+              <Text style={{ fontSize: 9, color, fontFamily: fonts.interfaceMedium }}>{ROLE_META[r]?.label ?? r}</Text>
+              <Text style={{ fontSize: 9, color: colors.textTertiary, marginLeft: 'auto' }}>{n}</Text>
+            </View>
+            <View style={{ height: 4, borderRadius: 2, backgroundColor: color + '22' }}>
+              <View style={{ width: barW, height: 4, borderRadius: 2, backgroundColor: color }} />
+            </View>
+          </View>
+        );
+      })}
+    </View>
   );
 }
 
@@ -311,7 +293,7 @@ function AccountModal({ visible, editing, shops, headers, onClose, onSaved }: {
   );
 }
 
-// ─── Shop Modal (admin only) ───────────────────────────────────────────────────
+// ─── Shop Modal ────────────────────────────────────────────────────────────────
 
 function ShopModal({ visible, editing, headers, onClose, onSaved }: {
   visible: boolean; editing: Shop | null;
@@ -493,27 +475,19 @@ export default function SettingsScreen() {
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
   async function deleteAccount(id: string, name: string) {
-    Alert.alert('Confirmation', `Supprimer le compte de ${name} ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        const res  = await fetch(`${API_BASE}/settings/accounts/${id}`, { method: 'DELETE', headers: authHeaders });
-        const json = await res.json();
-        if (json.success) fetchAll();
-        else Alert.alert('Erreur', json.error?.message ?? 'Erreur');
-      }},
-    ]);
+    if (!window.confirm(`Supprimer le compte de ${name} ?`)) return;
+    const res  = await fetch(`${API_BASE}/settings/accounts/${id}`, { method: 'DELETE', headers: authHeaders });
+    const json = await res.json().catch(() => null);
+    if (json?.success) fetchAll();
+    else window.alert(json?.error?.message ?? 'Erreur inconnue');
   }
 
   async function deleteShop(id: string, name: string) {
-    Alert.alert('Confirmation', `Supprimer "${name}" ?`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => {
-        const res  = await fetch(`${API_BASE}/settings/shops/${id}`, { method: 'DELETE', headers: authHeaders });
-        const json = await res.json();
-        if (json.success) fetchAll();
-        else Alert.alert('Erreur', json.error?.message ?? 'Erreur');
-      }},
-    ]);
+    if (!window.confirm(`Supprimer "${name}" ?`)) return;
+    const res  = await fetch(`${API_BASE}/settings/shops/${id}`, { method: 'DELETE', headers: authHeaders });
+    const json = await res.json().catch(() => null);
+    if (json?.success) fetchAll();
+    else window.alert(json?.error?.message ?? 'Erreur inconnue');
   }
 
   // ── Tab: Team ────────────────────────────────────────────────────────────────
@@ -528,57 +502,53 @@ export default function SettingsScreen() {
     return (
       <ScrollView contentContainerStyle={st.tabContent} showsVerticalScrollIndicator={false}>
 
-        {/* Donut overview */}
-        <Reanimated.View entering={FadeInDown.duration(400)}>
-          <View style={st.overviewCard}>
-            <View style={{ flex: 1, paddingRight: spacing.sm }}>
-              <Text style={st.overviewEyebrow}>Distribution des rôles</Text>
-              <Text style={st.overviewBig}>
-                {accounts.length}
-                <Text style={st.overviewBigSub}> collaborateurs</Text>
-              </Text>
-              <View style={st.distList}>
-                {Object.entries(roleCount).map(([r, n]) => (
-                  <View key={r} style={st.distRow}>
-                    <View style={[st.distDot, { backgroundColor: ROLE_META[r]?.color ?? '#ccc' }]} />
-                    <Text style={st.distLabel}>{ROLE_META[r]?.label ?? r}</Text>
-                    <Text style={st.distNum}>{n}</Text>
-                  </View>
-                ))}
-              </View>
+        {/* Overview card */}
+        <View style={st.overviewCard}>
+          <View style={{ flex: 1, paddingRight: spacing.sm }}>
+            <Text style={st.overviewEyebrow}>Distribution des rôles</Text>
+            <Text style={st.overviewBig}>
+              {accounts.length}
+              <Text style={st.overviewBigSub}> collaborateurs</Text>
+            </Text>
+            <View style={st.distList}>
+              {Object.entries(roleCount).map(([r, n]) => (
+                <View key={r} style={st.distRow}>
+                  <View style={[st.distDot, { backgroundColor: ROLE_META[r]?.color ?? '#ccc' }]} />
+                  <Text style={st.distLabel}>{ROLE_META[r]?.label ?? r}</Text>
+                  <Text style={st.distNum}>{n}</Text>
+                </View>
+              ))}
             </View>
-            <RoleDonut accounts={accounts} size={110} />
           </View>
-        </Reanimated.View>
+          <RoleDonut accounts={accounts} />
+        </View>
 
         {/* Section header */}
-        <Reanimated.View entering={FadeInDown.duration(400).delay(60)}>
-          <View style={st.sectionRow}>
-            <View style={st.sectionLeft}>
-              <View style={st.sectionBar} />
-              <Text style={st.sectionTitle}>Comptes</Text>
-              <View style={st.countPill}>
-                <Text style={st.countPillText}>
-                  {accounts.length}{maxAccounts !== -1 ? `/${maxAccounts}` : ''}
-                </Text>
-              </View>
+        <View style={st.sectionRow}>
+          <View style={st.sectionLeft}>
+            <View style={st.sectionBar} />
+            <Text style={st.sectionTitle}>Comptes</Text>
+            <View style={st.countPill}>
+              <Text style={st.countPillText}>
+                {accounts.length}{maxAccounts !== -1 ? `/${maxAccounts}` : ''}
+              </Text>
             </View>
-            <TouchableOpacity
-              style={[st.addBtn, !canAdd && { opacity: 0.35 }]}
-              onPress={() => canAdd && setAccountModal({ visible: true, editing: null })}
-              disabled={!canAdd}
-            >
-              <MaterialIcons name="person-add" size={13} color="#fff" />
-              <Text style={st.addBtnText}>Ajouter</Text>
-            </TouchableOpacity>
           </View>
-        </Reanimated.View>
+          <TouchableOpacity
+            style={[st.addBtn, !canAdd && { opacity: 0.35 }]}
+            onPress={() => canAdd && setAccountModal({ visible: true, editing: null })}
+            disabled={!canAdd}
+          >
+            <MaterialIcons name="person-add" size={13} color="#fff" />
+            <Text style={st.addBtnText}>Ajouter</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Account cards */}
-        {accounts.map((acc, i) => {
+        {accounts.map((acc) => {
           const m = ROLE_META[acc.role] ?? { color: colors.textTertiary, icon: 'person', label: acc.role };
           return (
-            <Reanimated.View key={acc.id} entering={FadeInDown.duration(350).delay(120 + i * 55)}>
+            <View key={acc.id}>
               <View style={[st.accountCard, { borderLeftColor: m.color }]}>
                 <View style={[st.accountAvatar, { backgroundColor: m.color + '1A' }]}>
                   <Text style={[st.accountAvatarText, { color: m.color }]}>
@@ -617,7 +587,7 @@ export default function SettingsScreen() {
                   <Text style={st.inactiveBannerText}>Compte désactivé</Text>
                 </View>
               )}
-            </Reanimated.View>
+            </View>
           );
         })}
 
@@ -629,125 +599,115 @@ export default function SettingsScreen() {
   // ── Tab: Boutiques ──────────────────────────────────────────────────────────
 
   function renderBoutiques() {
-    const maxShops   = subscription?.maxShops ?? 1;
+    const maxShops    = subscription?.maxShops ?? 1;
     const activeShops = shops.filter(s => s.isActive).length;
 
     return (
       <ScrollView contentContainerStyle={st.tabContent} showsVerticalScrollIndicator={false}>
 
         {/* Stat bar */}
-        <Reanimated.View entering={FadeInDown.duration(400)}>
-          <View style={st.shopStatsRow}>
-            {[
-              { num: activeShops, label: 'Actives', color: colors.success },
-              { num: shops.length - activeShops, label: 'Inactives', color: colors.danger },
-              { num: shops.length, label: maxShops === -1 ? 'Total' : `sur ${maxShops}`, color: colors.gold },
-            ].map(({ num, label, color }) => (
-              <View key={label} style={st.shopStatCard}>
-                <Text style={[st.shopStatNum, { color }]}>{num}</Text>
-                <Text style={st.shopStatLabel}>{label}</Text>
-              </View>
-            ))}
-          </View>
-        </Reanimated.View>
+        <View style={st.shopStatsRow}>
+          {[
+            { num: activeShops, label: 'Actives', color: colors.success },
+            { num: shops.length - activeShops, label: 'Inactives', color: colors.danger },
+            { num: shops.length, label: maxShops === -1 ? 'Total' : `sur ${maxShops}`, color: colors.gold },
+          ].map(({ num, label, color }) => (
+            <View key={label} style={st.shopStatCard}>
+              <Text style={[st.shopStatNum, { color }]}>{num}</Text>
+              <Text style={st.shopStatLabel}>{label}</Text>
+            </View>
+          ))}
+        </View>
 
         {/* Section header */}
-        <Reanimated.View entering={FadeInDown.duration(400).delay(60)}>
-          <View style={st.sectionRow}>
-            <View style={st.sectionLeft}>
-              <View style={st.sectionBar} />
-              <Text style={st.sectionTitle}>Points de vente</Text>
-            </View>
-            {isAdmin && (
-              <TouchableOpacity style={st.addBtn} onPress={() => setShopModal({ visible: true, editing: null })}>
-                <MaterialIcons name="add-business" size={13} color="#fff" />
-                <Text style={st.addBtnText}>Ajouter</Text>
-              </TouchableOpacity>
-            )}
+        <View style={st.sectionRow}>
+          <View style={st.sectionLeft}>
+            <View style={st.sectionBar} />
+            <Text style={st.sectionTitle}>Points de vente</Text>
           </View>
-        </Reanimated.View>
+          {isAdmin && (
+            <TouchableOpacity style={st.addBtn} onPress={() => setShopModal({ visible: true, editing: null })}>
+              <MaterialIcons name="add-business" size={13} color="#fff" />
+              <Text style={st.addBtnText}>Ajouter</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         {/* Boutique cards */}
-        {shops.map((shop, i) => {
+        {shops.map((shop) => {
           const assigned = (shop as any).users ?? [];
           return (
-            <Reanimated.View key={shop.id} entering={FadeInDown.duration(350).delay(120 + i * 55)}>
-              <View style={st.boutiqueCard}>
-                <View style={st.boutiqueTop}>
-                  <View style={[st.boutiqueIcon, shop.isActive ? { backgroundColor: colors.successLight } : { backgroundColor: colors.borderLight }]}>
-                    <MaterialIcons name="storefront" size={20} color={shop.isActive ? colors.success : colors.textTertiary} />
-                  </View>
-                  <View style={st.boutiqueInfo}>
-                    <Text style={st.boutiqueName}>{shop.name}</Text>
-                    {(shop.address || shop.city) && (
-                      <Text style={st.boutiqueAddr}>{[shop.address, shop.city].filter(Boolean).join(' · ')}</Text>
-                    )}
-                    {shop.code && <Text style={st.boutiqueCode}>#{shop.code}</Text>}
-                  </View>
-                  <View style={{ alignItems: 'flex-end', gap: 6 }}>
-                    <View style={[st.statusPill,
-                      shop.isActive
-                        ? { backgroundColor: colors.successLight, borderColor: colors.success + '40' }
-                        : { backgroundColor: colors.borderLight, borderColor: colors.border }
-                    ]}>
-                      <View style={[st.statusDot, { backgroundColor: shop.isActive ? colors.success : colors.textTertiary }]} />
-                      <Text style={[st.statusPillText, { color: shop.isActive ? colors.success : colors.textSecondary }]}>
-                        {shop.isActive ? 'Actif' : 'Inactif'}
-                      </Text>
-                    </View>
-                    {isAdmin && (
-                      <View style={st.btnRow}>
-                        <TouchableOpacity style={st.editBtn} onPress={() => setShopModal({ visible: true, editing: shop })}>
-                          <MaterialIcons name="edit" size={14} color={colors.navy} />
-                        </TouchableOpacity>
-                        <TouchableOpacity style={st.deleteBtn} onPress={() => deleteShop(shop.id, shop.name)}>
-                          <MaterialIcons name="delete-outline" size={14} color={colors.danger} />
-                        </TouchableOpacity>
-                      </View>
-                    )}
-                  </View>
+            <View key={shop.id} style={st.boutiqueCard}>
+              <View style={st.boutiqueTop}>
+                <View style={[st.boutiqueIcon, shop.isActive ? { backgroundColor: colors.successLight } : { backgroundColor: colors.borderLight }]}>
+                  <MaterialIcons name="storefront" size={20} color={shop.isActive ? colors.success : colors.textTertiary} />
                 </View>
-
-                {/* Assigned team */}
-                <View style={st.boutiqueTeam}>
-                  {assigned.slice(0, 5).map((u: any) => {
-                    const rm = ROLE_META[u.role] ?? { color: colors.textTertiary };
-                    return (
-                      <View key={u.id} style={[st.miniAvatar, { backgroundColor: rm.color + '20', borderColor: rm.color + '50' }]}>
-                        <Text style={[st.miniAvatarText, { color: rm.color }]}>
-                          {(u.firstName?.[0] ?? u.lastName?.[0] ?? '?').toUpperCase()}
-                        </Text>
-                      </View>
-                    );
-                  })}
-                  {assigned.length > 5 && (
-                    <View style={[st.miniAvatar, { backgroundColor: colors.borderLight, borderColor: colors.border }]}>
-                      <Text style={[st.miniAvatarText, { color: colors.textSecondary }]}>+{assigned.length - 5}</Text>
+                <View style={st.boutiqueInfo}>
+                  <Text style={st.boutiqueName}>{shop.name}</Text>
+                  {(shop.address || shop.city) && (
+                    <Text style={st.boutiqueAddr}>{[shop.address, shop.city].filter(Boolean).join(' · ')}</Text>
+                  )}
+                  {shop.code && <Text style={st.boutiqueCode}>#{shop.code}</Text>}
+                </View>
+                <View style={{ alignItems: 'flex-end', gap: 6 }}>
+                  <View style={[st.statusPill,
+                    shop.isActive
+                      ? { backgroundColor: colors.successLight, borderColor: colors.success + '40' }
+                      : { backgroundColor: colors.borderLight, borderColor: colors.border }
+                  ]}>
+                    <View style={[st.statusDot, { backgroundColor: shop.isActive ? colors.success : colors.textTertiary }]} />
+                    <Text style={[st.statusPillText, { color: shop.isActive ? colors.success : colors.textSecondary }]}>
+                      {shop.isActive ? 'Actif' : 'Inactif'}
+                    </Text>
+                  </View>
+                  {isAdmin && (
+                    <View style={st.btnRow}>
+                      <TouchableOpacity style={st.editBtn} onPress={() => setShopModal({ visible: true, editing: shop })}>
+                        <MaterialIcons name="edit" size={14} color={colors.navy} />
+                      </TouchableOpacity>
+                      <TouchableOpacity style={st.deleteBtn} onPress={() => deleteShop(shop.id, shop.name)}>
+                        <MaterialIcons name="delete-outline" size={14} color={colors.danger} />
+                      </TouchableOpacity>
                     </View>
                   )}
-                  <Text style={st.teamCountText}>
-                    {assigned.length === 0
-                      ? 'Aucun collaborateur assigné'
-                      : `${assigned.length} collaborateur${assigned.length > 1 ? 's' : ''}`}
-                  </Text>
                 </View>
               </View>
-            </Reanimated.View>
+              <View style={st.boutiqueTeam}>
+                {assigned.slice(0, 5).map((u: any) => {
+                  const rm = ROLE_META[u.role] ?? { color: colors.textTertiary };
+                  return (
+                    <View key={u.id} style={[st.miniAvatar, { backgroundColor: rm.color + '20', borderColor: rm.color + '50' }]}>
+                      <Text style={[st.miniAvatarText, { color: rm.color }]}>
+                        {(u.firstName?.[0] ?? u.lastName?.[0] ?? '?').toUpperCase()}
+                      </Text>
+                    </View>
+                  );
+                })}
+                {assigned.length > 5 && (
+                  <View style={[st.miniAvatar, { backgroundColor: colors.borderLight, borderColor: colors.border }]}>
+                    <Text style={[st.miniAvatarText, { color: colors.textSecondary }]}>+{assigned.length - 5}</Text>
+                  </View>
+                )}
+                <Text style={st.teamCountText}>
+                  {assigned.length === 0
+                    ? 'Aucun collaborateur assigné'
+                    : `${assigned.length} collaborateur${assigned.length > 1 ? 's' : ''}`}
+                </Text>
+              </View>
+            </View>
           );
         })}
 
         {shops.length === 0 && (
-          <Reanimated.View entering={FadeIn.duration(500).delay(200)}>
-            <View style={st.emptyState}>
-              <View style={st.emptyIcon}>
-                <MaterialIcons name="store-mall-directory" size={32} color={colors.textTertiary} />
-              </View>
-              <Text style={st.emptyTitle}>Aucune boutique</Text>
-              <Text style={st.emptyText}>
-                {isAdmin ? 'Créez votre premier point de vente.' : 'Les boutiques sont créées par l\'administrateur.'}
-              </Text>
+          <View style={st.emptyState}>
+            <View style={st.emptyIcon}>
+              <MaterialIcons name="store-mall-directory" size={32} color={colors.textTertiary} />
             </View>
-          </Reanimated.View>
+            <Text style={st.emptyTitle}>Aucune boutique</Text>
+            <Text style={st.emptyText}>
+              {isAdmin ? 'Créez votre premier point de vente.' : "Les boutiques sont créées par l'administrateur."}
+            </Text>
+          </View>
         )}
 
         <View style={{ height: spacing.xxl }} />
@@ -769,44 +729,40 @@ export default function SettingsScreen() {
       <ScrollView contentContainerStyle={st.tabContent} showsVerticalScrollIndicator={false}>
 
         {/* Luxury plan card */}
-        <Reanimated.View entering={FadeInDown.duration(450)}>
-          <View style={st.planCard}>
-            <View style={[st.planCircle, { width: 220, height: 220, top: -90, right: -70 }]} />
-            <View style={[st.planCircle, { width: 110, height: 110, top: -10, right: 70, opacity: 0.04 }]} />
-            <View style={st.planTopRow}>
-              <View style={[st.planStatusBadge, { backgroundColor: sm.bg }]}>
-                <View style={[st.statusDot, { backgroundColor: sm.color }]} />
-                <Text style={[st.planStatusText, { color: sm.color }]}>{sm.label}</Text>
-              </View>
-              <Text style={st.planWordmark}>KONFIRM</Text>
+        <View style={st.planCard}>
+          <View style={[st.planCircle, { width: 220, height: 220, top: -90, right: -70 }]} />
+          <View style={[st.planCircle, { width: 110, height: 110, top: -10, right: 70, opacity: 0.04 }]} />
+          <View style={st.planTopRow}>
+            <View style={[st.planStatusBadge, { backgroundColor: sm.bg }]}>
+              <View style={[st.statusDot, { backgroundColor: sm.color }]} />
+              <Text style={[st.planStatusText, { color: sm.color }]}>{sm.label}</Text>
             </View>
-            <Text style={st.planName}>{plan}</Text>
-            {company?.name && <Text style={st.planCompany}>{company.name}</Text>}
-            {subscription?.expiresAt && (
-              <Text style={st.planExpiry}>
-                Expire le {new Date(subscription.expiresAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-              </Text>
-            )}
+            <Text style={st.planWordmark}>KONFIRM</Text>
           </View>
-        </Reanimated.View>
+          <Text style={st.planName}>{plan}</Text>
+          {company?.name && <Text style={st.planCompany}>{company.name}</Text>}
+          {subscription?.expiresAt && (
+            <Text style={st.planExpiry}>
+              Expire le {new Date(subscription.expiresAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
+            </Text>
+          )}
+        </View>
 
         {/* Usage arcs */}
-        <Reanimated.View entering={FadeInDown.duration(400).delay(80)}>
-          <View style={st.sectionRow}>
-            <View style={st.sectionLeft}>
-              <View style={st.sectionBar} />
-              <Text style={st.sectionTitle}>Utilisation</Text>
-            </View>
+        <View style={st.sectionRow}>
+          <View style={st.sectionLeft}>
+            <View style={st.sectionBar} />
+            <Text style={st.sectionTitle}>Utilisation</Text>
           </View>
-          <View style={st.usageRow}>
-            <UsageArcCard label="Comptes"   used={usage.accounts} max={maxAcc} color={colors.navy} />
-            <UsageArcCard label="Boutiques" used={usage.shops}    max={maxShp} color={colors.gold} />
-          </View>
-        </Reanimated.View>
+        </View>
+        <View style={st.usageRow}>
+          <UsageArcCard label="Comptes"   used={usage.accounts} max={maxAcc} color={colors.navy} />
+          <UsageArcCard label="Boutiques" used={usage.shops}    max={maxShp} color={colors.gold} />
+        </View>
 
         {/* Features */}
         {features.length > 0 && (
-          <Reanimated.View entering={FadeInDown.duration(400).delay(160)}>
+          <>
             <View style={st.sectionRow}>
               <View style={st.sectionLeft}>
                 <View style={st.sectionBar} />
@@ -823,30 +779,28 @@ export default function SettingsScreen() {
                 </View>
               ))}
             </View>
-          </Reanimated.View>
+          </>
         )}
 
         {/* Role matrix */}
-        <Reanimated.View entering={FadeInDown.duration(400).delay(220)}>
-          <View style={st.sectionRow}>
-            <View style={st.sectionLeft}>
-              <View style={st.sectionBar} />
-              <Text style={st.sectionTitle}>Accès par rôle</Text>
-            </View>
+        <View style={st.sectionRow}>
+          <View style={st.sectionLeft}>
+            <View style={st.sectionBar} />
+            <Text style={st.sectionTitle}>Accès par rôle</Text>
           </View>
-          {Object.entries(ROLE_META).map(([r, m]) => (
-            <TouchableOpacity key={r} style={st.roleRow} onPress={() => setRoleModal({ visible: true, role: r })} activeOpacity={0.72}>
-              <View style={[st.roleRowIcon, { backgroundColor: m.color + '15' }]}>
-                <MaterialIcons name={m.icon as any} size={16} color={m.color} />
-              </View>
-              <View style={{ flex: 1 }}>
-                <Text style={st.roleRowTitle}>{m.label}</Text>
-                <Text style={st.roleRowSub} numberOfLines={1}>{ROLE_FEATURES[r]?.slice(0, 2).join(' · ')}</Text>
-              </View>
-              <MaterialIcons name="chevron-right" size={18} color={colors.textTertiary} />
-            </TouchableOpacity>
-          ))}
-        </Reanimated.View>
+        </View>
+        {Object.entries(ROLE_META).map(([r, m]) => (
+          <TouchableOpacity key={r} style={st.roleRow} onPress={() => setRoleModal({ visible: true, role: r })} activeOpacity={0.72}>
+            <View style={[st.roleRowIcon, { backgroundColor: m.color + '15' }]}>
+              <MaterialIcons name={m.icon as any} size={16} color={m.color} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text style={st.roleRowTitle}>{m.label}</Text>
+              <Text style={st.roleRowSub} numberOfLines={1}>{ROLE_FEATURES[r]?.slice(0, 2).join(' · ')}</Text>
+            </View>
+            <MaterialIcons name="chevron-right" size={18} color={colors.textTertiary} />
+          </TouchableOpacity>
+        ))}
 
         <View style={{ height: spacing.xxl }} />
       </ScrollView>
@@ -975,7 +929,6 @@ export default function SettingsScreen() {
 const st = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
 
-  // ── Hero
   hero: { backgroundColor: colors.primaryDark, paddingHorizontal: spacing.md, paddingBottom: spacing.lg, overflow: 'hidden' },
   heroCircleA: { position: 'absolute', width: 260, height: 260, borderRadius: 130, backgroundColor: colors.navy3, opacity: 0.28, top: -110, right: -80 },
   heroCircleB: { position: 'absolute', width: 130, height: 130, borderRadius: 65,  backgroundColor: colors.gold,  opacity: 0.045, bottom: -30, left: 20 },
@@ -994,7 +947,6 @@ const st = StyleSheet.create({
   heroStatLabel: { color: 'rgba(255,255,255,0.4)', fontSize: 10, fontFamily: fonts.interface, marginTop: 2, letterSpacing: 0.3 },
   heroStatSep: { width: 1, backgroundColor: 'rgba(255,255,255,0.1)', marginVertical: 6 },
 
-  // ── Tab bar
   tabBar: { flexDirection: 'row', backgroundColor: colors.surface, padding: spacing.xs, gap: 4, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   tabItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 5, paddingVertical: 9, borderRadius: radius.lg },
   tabItemActive: { backgroundColor: colors.navy, ...shadows.sm },
@@ -1003,7 +955,6 @@ const st = StyleSheet.create({
 
   tabContent: { padding: spacing.md, gap: spacing.sm },
 
-  // ── Overview card
   overviewCard: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: colors.borderLight, ...shadows.sm },
   overviewEyebrow: { fontSize: 10, color: colors.textTertiary, fontFamily: fonts.interfaceMedium, letterSpacing: 0.8, textTransform: 'uppercase', marginBottom: 4 },
   overviewBig: { fontSize: 26, color: colors.textPrimary, fontFamily: fonts.interfaceBold, fontWeight: '800' },
@@ -1014,7 +965,6 @@ const st = StyleSheet.create({
   distLabel: { flex: 1, fontSize: 12, color: colors.textSecondary, fontFamily: fonts.interface },
   distNum: { fontSize: 12, fontFamily: fonts.interfaceBold, fontWeight: '700', color: colors.textPrimary },
 
-  // ── Section row
   sectionRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: 4 },
   sectionLeft: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   sectionBar: { width: 3, height: 14, borderRadius: 2, backgroundColor: colors.gold },
@@ -1024,7 +974,6 @@ const st = StyleSheet.create({
   addBtn: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.navy, paddingHorizontal: 12, paddingVertical: 7, borderRadius: radius.full, ...shadows.sm },
   addBtnText: { color: '#fff', fontSize: 12, fontFamily: fonts.interfaceBold, fontWeight: '700' },
 
-  // ── Account card
   accountCard: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md, flexDirection: 'row', alignItems: 'center', gap: spacing.sm, borderWidth: 1, borderColor: colors.borderLight, borderLeftWidth: 3, ...shadows.xs },
   accountAvatar: { width: 42, height: 42, borderRadius: radius.full, alignItems: 'center', justifyContent: 'center' },
   accountAvatarText: { fontSize: 16, fontFamily: fonts.interfaceBold, fontWeight: '800' },
@@ -1044,13 +993,11 @@ const st = StyleSheet.create({
   inactiveBanner: { flexDirection: 'row', alignItems: 'center', gap: 5, backgroundColor: colors.dangerLight, borderRadius: radius.sm, paddingHorizontal: 10, paddingVertical: 4, marginTop: 3 },
   inactiveBannerText: { fontSize: 10, color: colors.danger, fontFamily: fonts.interfaceMedium, fontWeight: '600' },
 
-  // ── Shop stats
   shopStatsRow: { flexDirection: 'row', gap: spacing.sm },
   shopStatCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.borderLight, ...shadows.xs },
   shopStatNum: { fontSize: 24, fontFamily: fonts.interfaceBold, fontWeight: '800', color: colors.textPrimary },
   shopStatLabel: { fontSize: 11, color: colors.textTertiary, fontFamily: fonts.interface, marginTop: 2 },
 
-  // ── Boutique card
   boutiqueCard: { backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md, borderWidth: 1, borderColor: colors.borderLight, ...shadows.xs },
   boutiqueTop: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.sm },
   boutiqueIcon: { width: 44, height: 44, borderRadius: radius.lg, alignItems: 'center', justifyContent: 'center' },
@@ -1070,7 +1017,6 @@ const st = StyleSheet.create({
   emptyTitle: { fontSize: 16, fontFamily: fonts.interfaceBold, fontWeight: '700', color: colors.textSecondary },
   emptyText: { fontSize: 13, color: colors.textTertiary, textAlign: 'center', fontFamily: fonts.interface, paddingHorizontal: spacing.lg, lineHeight: 20 },
 
-  // ── Plan card
   planCard: { backgroundColor: colors.primaryDark, borderRadius: radius.xl, padding: spacing.lg, overflow: 'hidden', ...shadows.lg },
   planCircle: { position: 'absolute', borderRadius: 9999, backgroundColor: colors.gold, opacity: 0.05 },
   planTopRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.sm },
@@ -1081,26 +1027,22 @@ const st = StyleSheet.create({
   planCompany: { color: 'rgba(255,255,255,0.38)', fontSize: 12, fontFamily: fonts.interface, marginBottom: spacing.sm },
   planExpiry: { color: 'rgba(255,255,255,0.28)', fontSize: 11, fontFamily: fonts.interface, marginTop: 4 },
 
-  // ── Usage arcs
   usageRow: { flexDirection: 'row', gap: spacing.sm },
   usageArcCard: { flex: 1, backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md, alignItems: 'center', borderWidth: 1, borderColor: colors.borderLight, ...shadows.xs },
   arcCenterNum: { fontSize: 13, fontFamily: fonts.interfaceBold, fontWeight: '800' },
   arcLabel: { fontSize: 11, color: colors.textSecondary, fontFamily: fonts.interface, marginTop: 8 },
   arcCount: { fontSize: 13, fontFamily: fonts.interfaceBold, fontWeight: '700', color: colors.textPrimary, marginTop: 2 },
 
-  // ── Feature card
   featureCard: { backgroundColor: colors.surface, borderRadius: radius.xl, paddingHorizontal: spacing.md, borderWidth: 1, borderColor: colors.borderLight, ...shadows.xs },
   featureRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, paddingVertical: spacing.sm, borderBottomWidth: 1, borderBottomColor: colors.borderLight },
   featureCheck: { width: 24, height: 24, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center', backgroundColor: colors.successLight },
   featureText: { flex: 1, fontSize: 13, color: colors.textPrimary, fontFamily: fonts.interface },
 
-  // ── Role matrix
   roleRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm, backgroundColor: colors.surface, borderRadius: radius.xl, padding: spacing.md, marginBottom: spacing.xs, borderWidth: 1, borderColor: colors.borderLight },
   roleRowIcon: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   roleRowTitle: { fontSize: 13, fontFamily: fonts.interfaceBold, fontWeight: '700', color: colors.textPrimary },
   roleRowSub: { fontSize: 11, color: colors.textSecondary, fontFamily: fonts.interface, marginTop: 2 },
 
-  // ── Modal / Sheet
   overlay: { flex: 1, backgroundColor: 'rgba(10,22,40,0.6)', justifyContent: 'flex-end' },
   sheet: { backgroundColor: colors.surface, borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, maxHeight: '92%', ...shadows.xl },
   sheetHandle: { width: 36, height: 4, borderRadius: 2, backgroundColor: colors.borderLight, alignSelf: 'center', marginTop: spacing.sm },
@@ -1112,7 +1054,6 @@ const st = StyleSheet.create({
   sheetBody: { padding: spacing.lg },
   sheetFooter: { flexDirection: 'row', gap: spacing.sm, padding: spacing.lg, borderTopWidth: 1, borderTopColor: colors.borderLight },
 
-  // ── Form
   nameRow: { flexDirection: 'row', gap: spacing.sm },
   fieldGroup: { marginBottom: spacing.md },
   fieldLabel: { fontSize: 10, fontFamily: fonts.interfaceMedium, fontWeight: '700', color: colors.textTertiary, letterSpacing: 0.9, textTransform: 'uppercase', marginBottom: 6 },

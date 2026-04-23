@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { View, StyleSheet, Alert, Dimensions, TouchableOpacity, Image, Platform } from 'react-native';
+import { View, StyleSheet, Alert, Dimensions, TouchableOpacity, Image, Platform, Animated, Easing } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { CameraView, Camera } from 'expo-camera';
 import * as ImagePicker from 'expo-image-picker';
@@ -38,6 +38,10 @@ export default function DocumentCaptureScreen() {
   const [isCapturing, setIsCapturing] = useState(false);
   const [flashMode, setFlashMode] = useState<'off' | 'on' | 'auto'>('off');
   const [previewUri, setPreviewUri] = useState<string | null>(null);
+  const [isExtracting, setIsExtracting] = useState(false);
+  const [extractingPhotoUri, setExtractingPhotoUri] = useState<string | null>(null);
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  const progressAnimation = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
     requestCameraPermission();
@@ -113,17 +117,44 @@ export default function DocumentCaptureScreen() {
   };
 
   const runOCRAndNavigate = async (photoUri: string) => {
-    setIsCapturing(true);
+    setExtractingPhotoUri(photoUri);
+    setIsExtracting(true);
+    progressAnim.setValue(0);
+
+    // Progression simulée : monte à 80 % en ~4 s, attend la réponse réelle
+    progressAnimation.current = Animated.timing(progressAnim, {
+      toValue: 0.8,
+      duration: 4000,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: false,
+    });
+    progressAnimation.current.start();
+
     try {
       const identityData = await callOCRApi(photoUri);
+
+      // Compléter la barre jusqu'à 100 % avant de naviguer
+      progressAnimation.current?.stop();
+      await new Promise<void>(resolve => {
+        Animated.timing(progressAnim, {
+          toValue: 1,
+          duration: 350,
+          easing: Easing.out(Easing.quad),
+          useNativeDriver: false,
+        }).start(() => resolve());
+      });
+
+      setIsExtracting(false);
       // @ts-ignore
       navigation.navigate('IdentityVerification', { identityData, dossierData, docType, photoUri });
     } catch (err) {
+      progressAnimation.current?.stop();
+      setIsExtracting(false);
       if (err instanceof AuthSessionError) {
         await logout();
         Alert.alert(
           'Session expirée',
-          'Reconnectez-vous pour relancer l’extraction du document.',
+          "Reconnectez-vous pour relancer l'extraction du document.",
           [{
             text: 'Se reconnecter',
             onPress: () => {
@@ -137,8 +168,6 @@ export default function DocumentCaptureScreen() {
       console.warn('[OCR] Unexpected error, navigating without data:', err);
       // @ts-ignore
       navigation.navigate('IdentityVerification', { identityData: null, dossierData, docType, photoUri });
-    } finally {
-      setIsCapturing(false);
     }
   };
 
@@ -314,6 +343,39 @@ export default function DocumentCaptureScreen() {
     );
   }
 
+  // ── Overlay d'extraction OCR ──────────────────────────────────────────────────
+
+  if (isExtracting) {
+    const progressWidth = progressAnim.interpolate({ inputRange: [0, 1], outputRange: ['0%', '100%'] });
+    return (
+      <View style={styles.ocrOverlay}>
+        {extractingPhotoUri && (
+          <Image source={{ uri: extractingPhotoUri }} style={styles.ocrBg} blurRadius={6} />
+        )}
+        <View style={styles.ocrDimmer} />
+        <View style={styles.ocrCard}>
+          <View style={styles.ocrIconRing}>
+            <MaterialIcons name="document-scanner" size={36} color={colors.primary} />
+          </View>
+          <Text style={styles.ocrTitle}>Extraction en cours…</Text>
+          <Text style={styles.ocrSubtitle}>Lecture et analyse de votre document d'identité</Text>
+
+          <View style={styles.progressTrack}>
+            <Animated.View style={[styles.progressFill, { width: progressWidth }]} />
+          </View>
+
+          <View style={styles.ocrSteps}>
+            <OcrStep icon="crop-free"         label="Détection du document" />
+            <OcrStep icon="text-fields"        label="Extraction des champs" />
+            <OcrStep icon="verified-user"      label="Vérification des données" />
+          </View>
+
+          <Text style={styles.ocrHint}>Veuillez patienter, cela prend quelques secondes</Text>
+        </View>
+      </View>
+    );
+  }
+
   // ── Écran principal : caméra + bouton galerie ─────────────────────────────────
 
   return (
@@ -394,6 +456,17 @@ export default function DocumentCaptureScreen() {
           Cadrez le document entier, bonne lumière
         </Text>
       </View>
+    </View>
+  );
+}
+
+function OcrStep({ icon, label }: { icon: string; label: string }) {
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: '#EEF2FF', justifyContent: 'center', alignItems: 'center' }}>
+        <MaterialIcons name={icon as any} size={15} color={colors.primary} />
+      </View>
+      <Text style={{ fontSize: 13, color: '#475569' }}>{label}</Text>
     </View>
   );
 }
@@ -548,5 +621,77 @@ const styles = StyleSheet.create({
   previewImage: {
     width: '100%',
     height: '100%',
+  },
+
+  // ── OCR overlay ──────────────────────────────────────────────────────────────
+  ocrOverlay: {
+    flex: 1,
+    backgroundColor: '#000',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  ocrBg: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+    resizeMode: 'cover',
+  },
+  ocrDimmer: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.65)',
+  },
+  ocrCard: {
+    width: screenWidth - 48,
+    backgroundColor: 'white',
+    borderRadius: 20,
+    paddingVertical: 32,
+    paddingHorizontal: 28,
+    alignItems: 'center',
+    gap: 14,
+  },
+  ocrIconRing: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    backgroundColor: '#EEF2FF',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 4,
+  },
+  ocrTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#1E293B',
+    textAlign: 'center',
+  },
+  ocrSubtitle: {
+    fontSize: 13,
+    color: '#64748B',
+    textAlign: 'center',
+    lineHeight: 19,
+  },
+  progressTrack: {
+    width: '100%',
+    height: 6,
+    backgroundColor: '#E2E8F0',
+    borderRadius: 3,
+    overflow: 'hidden',
+    marginVertical: 4,
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: colors.primary,
+    borderRadius: 3,
+  },
+  ocrSteps: {
+    width: '100%',
+    gap: 8,
+    marginTop: 4,
+  },
+  ocrHint: {
+    fontSize: 11,
+    color: '#94A3B8',
+    textAlign: 'center',
+    marginTop: 4,
   },
 });

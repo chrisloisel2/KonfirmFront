@@ -1,16 +1,19 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Alert, Animated, Easing, RefreshControl, ScrollView, StatusBar, StyleSheet, View } from 'react-native';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import { Alert, Animated, Easing, RefreshControl, ScrollView, StatusBar, StyleSheet, TouchableOpacity, View } from 'react-native';
+import { Text } from 'react-native-paper';
+import { MaterialIcons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { useAuth } from '../../shared/services/AuthContext';
-import { colors, spacing } from '../../shared/theme/theme';
+import { colors, spacing, radius, shadows } from '../../shared/theme/theme';
 import { ROLE_META, canRoleAccess } from '../../shared/config/rolePermissions';
 import { UserRole } from '../../shared/types';
 import { API_BASE } from '../../shared/config/api';
 import { DashboardPayload, EMPTY_DATA } from './dashboard/types';
 import { SHORTCUT_DEFS } from './dashboard/helpers';
 import { DashboardHero } from './dashboard/sections/DashboardHero';
-import { KpiSection, QuickAccessSection, RecentDossiersSection } from './dashboard/sections/OperationalSections';
+import { KpiSection, RecentDossiersSection } from './dashboard/sections/OperationalSections';
+import { QuickRailDrawer } from './dashboard/QuickRailDrawer';
 import {
   AdminChartsSection,
   AdminSubscriptionsSection,
@@ -46,7 +49,7 @@ export default function DashboardScreen() {
     } catch {}
   }, [selectedBranch, token]);
 
-  useEffect(() => {
+  useFocusEffect(useCallback(() => {
     load();
     Animated.timing(headerAnim, {
       toValue: 1,
@@ -54,7 +57,7 @@ export default function DashboardScreen() {
       easing: Easing.out(Easing.quad),
       useNativeDriver: true,
     }).start();
-  }, [load]);
+  }, [load]));
 
   const onRefresh = async () => { setRefreshing(true); await load(); setRefreshing(false); };
 
@@ -135,12 +138,6 @@ export default function DashboardScreen() {
           isReferentOrAbove={isReferentOrAbove}
         />
 
-        {/* Raccourcis — définis par rôle dans rolePermissions.ts */}
-        <QuickAccessSection
-          shortcuts={shortcuts}
-          onNavigate={screen => navigation.navigate(screen)}
-        />
-
         {/* Dossiers récents — tous les rôles */}
         <RecentDossiersSection dossiers={data.recentDossiers} />
 
@@ -151,6 +148,7 @@ export default function DashboardScreen() {
               subscriptions={data.subscriptions}
               busySubId={busySubId}
               onUpdateSubscription={updateSubscription}
+              onRefresh={load}
             />
             <AdminPaymentsSection
               payments={data.recentPayments}
@@ -162,10 +160,46 @@ export default function DashboardScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Barre latérale rétractable — raccourcis par rôle */}
+      <QuickRailDrawer
+        shortcuts={shortcuts}
+        onNavigate={(screen: string) => navigation.navigate(screen)}
+      />
+
+      {/* FAB — Nouveau dossier */}
+      {canRoleAccess(role, 'NewDossier') && (
+        <TouchableOpacity
+          style={[styles.fab, { bottom: insets.bottom + 24 }]}
+          onPress={() => navigation.navigate('NewDossier')}
+          activeOpacity={0.85}
+        >
+          <MaterialIcons name="add" size={26} color="#fff" />
+          <Text style={styles.fabLabel}>Nouveau dossier</Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: colors.background },
+  fab: {
+    position: 'absolute',
+    right: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: colors.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: radius.full,
+    ...shadows.lg,
+  },
+  fabLabel: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+    letterSpacing: 0.2,
+  },
 });

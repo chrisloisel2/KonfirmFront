@@ -5,7 +5,7 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { colors } from '../../../../shared/theme/theme';
 import { OperationalKpis, DashboardPayload } from '../types';
 import { euros, humanDate } from '../helpers';
-import { KpiCard, ShortcutTile, SectionRow, StatusBadge } from '../components';
+import { KpiCard, KpiGaugeArc, KpiDonutDossiers, KpiAlertGauges, ShortcutTile, SectionRow, StatusBadge } from '../components';
 import { st } from '../styles';
 
 // ── KpiSection ─────────────────────────────────────────────────────────────────
@@ -22,27 +22,53 @@ export function KpiSection({ kpis, isAdmin, isManager, isReferentOrAbove }: KpiS
   return (
     <View style={st.section}>
       <SectionRow title={isAdmin ? 'KPI opérationnels' : 'Mes indicateurs'} />
-      <View style={st.kpiGrid}>
-        <KpiCard label="Dossiers aujourd'hui" value={kpis.dossiersAujourdhui} icon="folder-open" accent={colors.gold} />
-        {isReferentOrAbove && (
-          <KpiCard label="À valider" value={kpis.attenteValidation} icon="pending-actions" accent="#2563EB" />
-        )}
-        {isReferentOrAbove && (
-          <KpiCard label="Mes exceptions" value={kpis.mesExceptions} icon="report-problem" accent={colors.danger} />
-        )}
-        {isManager && (
+
+      {(isManager || isAdmin) ? (
+        <>
+          <KpiGaugeArc value={kpis.tauxValidation} />
+          <View style={st.kpiChartsRow}>
+            <KpiDonutDossiers
+              total={kpis.dossiersAujourdhui}
+              pending={kpis.attenteValidation}
+              exceptions={kpis.mesExceptions}
+            />
+            <KpiAlertGauges
+              exceptions={kpis.mesExceptions}
+              scoring={kpis.scoringCritique}
+            />
+          </View>
+        </>
+      ) : (
+        <View style={st.kpiGrid}>
           <KpiCard
-            label="Taux validation"
-            value={kpis.tauxValidation}
-            icon="verified"
-            accent={colors.success}
-            formatter={n => `${n}%`}
+            label="Dossiers aujourd'hui"
+            value={kpis.dossiersAujourdhui}
+            icon="folder-open"
+            accent={colors.gold}
+            note="Créés aujourd'hui"
           />
-        )}
-        {isManager && (
-          <KpiCard label="Scoring critique" value={kpis.scoringCritique} icon="warning" accent="#7C3AED" />
-        )}
-      </View>
+          {isReferentOrAbove && (
+            <KpiCard
+              label="À valider"
+              value={kpis.attenteValidation}
+              icon="pending-actions"
+              accent="#2563EB"
+              alertThreshold={1}
+              note="En attente"
+            />
+          )}
+          {isReferentOrAbove && (
+            <KpiCard
+              label="Mes exceptions"
+              value={kpis.mesExceptions}
+              icon="report-problem"
+              accent={colors.danger}
+              alertThreshold={1}
+              note="À traiter"
+            />
+          )}
+        </View>
+      )}
     </View>
   );
 }

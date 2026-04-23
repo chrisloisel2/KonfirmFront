@@ -103,7 +103,7 @@ function authReducer(state: AuthState, action: AuthAction): AuthState {
         isAuthenticated: true,
         isLoading: false,
         selectedRole: action.payload.user.role,
-        selectedBranch: undefined,
+        selectedBranch: action.payload.user.branch || undefined,
       };
 
     case 'AUTH_FAILURE':
@@ -243,11 +243,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         const token = result.data.token;
         const user = normalizeUser(result.data.user);
 
-        await AsyncStorage.multiSet([
+        const storageEntries: [string, string][] = [
           [STORAGE_KEYS.token, token],
           [STORAGE_KEYS.user, JSON.stringify(user)],
-        ]);
-        await AsyncStorage.multiRemove([STORAGE_KEYS.role, STORAGE_KEYS.branch]);
+        ];
+        if (user.branch) storageEntries.push([STORAGE_KEYS.branch, user.branch]);
+        await AsyncStorage.multiSet(storageEntries);
+        if (!user.branch) await AsyncStorage.multiRemove([STORAGE_KEYS.role, STORAGE_KEYS.branch]);
 
         dispatch({ type: 'AUTH_SUCCESS', payload: { user, token } });
         return { success: true };

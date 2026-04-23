@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   View, StyleSheet, ScrollView, TouchableOpacity,
-  Animated, StatusBar, Alert,
+  Animated, StatusBar, Alert, ActivityIndicator,
 } from 'react-native';
 import { Text } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -9,8 +9,8 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { ScoringResult, DecisionType } from '../../shared/types';
 import { colors, spacing, radius, shadows, typography } from '../../shared/theme/theme';
 import AppHeader from '../components/AppHeader';
-import { generateShareAndArchive } from '../../shared/services/pdfReportService';
 import { useAuth } from '../../shared/services/AuthContext';
+import { API_BASE } from '../../shared/config/api';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -353,82 +353,34 @@ export default function ScoringScreen() {
     ]).start();
   };
 
-  const proceed = () => {
-    if (!scoring) return;
-    const payload = {
-      scoring,
-      dossierId: scoring.dossierId,
-      dossierData,
-      recherches,
-      finalStatus: scoring.decision === 'auto_validated' ? 'validated' : 'under_review',
-    };
-    const dest = scoring.decision === 'auto_validated' ? 'ValidationFinale' : 'ExceptionHandling';
-    // @ts-ignore
-    navigation.navigate(dest, payload);
-  };
+  const [deciding, setDeciding] = useState<'valider' | 'refuser' | null>(null);
 
   const toggle = (key: string) => setExpandedCard(prev => prev === key ? null : key);
 
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const handleDecision = (choice: 'valider' | 'refuser') => {
+    if (deciding || !scoring) return;
+    const id = scoring.dossierId;
+    if (!id || !token) { Alert.alert('Erreur', 'Dossier ou session invalide'); return; }
 
-  const exportPDF = async () => {
-    if (!scoring) return;
-    setPdfLoading(true);
-    try {
-      const verResults: VerificationResult[] = dossierData?.identity?.verificationResults ?? [];
-      const identity = dossierData?.identity ?? {};
-      const result = await generateShareAndArchive({
-        dossierId: scoring.dossierId,
-        finalStatus: scoring.decision === 'auto_validated' ? 'validated'
-          : scoring.decision === 'blocage' ? 'blocked'
-          : scoring.decision === 'escalade' ? 'escalated'
-          : 'under_review',
-        identity: {
-          nom:            identity.nom ?? 'Non renseigné',
-          prenom:         identity.prenom ?? '',
-          dateNaissance:  identity.dateNaissance,
-          nationalite:    identity.nationalite,
-          numeroDocument: identity.numeroDocument,
-          dateExpiration: identity.dateExpiration,
-          docType:        identity.docType,
-        },
-        dossier: {
-          type:          dossierData?.type,
-          clientType:    dossierData?.clientType,
-          montant:       dossierData?.montant,
-          seuilLCBFT:    dossierData?.seuilLCBFT,
-          moyenPaiement: dossierData?.moyenPaiement,
-          intermediaire: dossierData?.intermediaire,
-        },
-        verificationResults: verResults,
-        recherches:          recherches ?? [],
-        scoring,
-        authToken: token ?? undefined,
-      });
-      if (result.archived) {
-        Alert.alert(
-          'PDF archivé',
-          'Le rapport a été scellé, horodaté et déposé dans le stockage sécurisé LCB-FT.',
-          [{ text: 'OK' }]
-        );
-      }
-    } catch (e: any) {
-      Alert.alert('Erreur', e?.message ?? 'Impossible de générer le rapport');
-    } finally {
-      setPdfLoading(false);
-    }
-  };
+    setDeciding(choice);
+    const targetStatus = choice === 'valider' ? 'VALIDE' : 'REJETE';
+    const finalStatus  = choice === 'valider' ? 'validated' : 'blocked';
 
-  const goToArchives = () => {
-    const numeroDossier = dossierData?.numero ?? dossierId ?? '';
-    const clientNom = dossierData?.identity
-      ? `${dossierData.identity.nom ?? ''} ${dossierData.identity.prenom ?? ''}`.trim()
-      : undefined;
+    // Mise à jour du statut en base — non bloquante
+    fetch(`${API_BASE}/dossiers/${id}`, {
+      method: 'PATCH',
+      headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status: targetStatus }),
+    }).catch(err => console.warn('Statut dossier:', err?.message));
+
+    // Navigation immédiate vers la page de clôture
     // @ts-ignore
-    navigation.navigate('Archivage', {
-      dossierId: scoring?.dossierId ?? dossierId,
-      numeroDossier,
-      clientNom
+    navigation.navigate('ValidationFinale', {
+      scoring,
+      dossierId: id,
+      dossierData,
+      recherches,
+      finalStatus,
     });
   };
 
@@ -617,35 +569,30 @@ export default function ScoringScreen() {
 
       </ScrollView>
 
-      {/* ── Footer CTA ── */}
+      {/* ── Footer : Valider / Refuser ── */}
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.pdfBtn}
-          onPress={exportPDF}
-          activeOpacity={0.75}
-          disabled={pdfLoading}
-        >
-          <MaterialIcons name={pdfLoading ? 'hourglass-empty' : 'picture-as-pdf'} size={17} color={colors.textSecondary} />
-          <Text style={styles.pdfBtnText}>{pdfLoading ? 'Génération…' : 'Rapport PDF'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.archivesBtn}
-          onPress={goToArchives}
-          activeOpacity={0.75}
-        >
-          <MaterialIcons name="workspace-premium" size={17} color={colors.accent} />
-          <Text style={styles.archivesBtnText}>Archives</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.ctaBtn, { backgroundColor: meta.color }]}
-          onPress={proceed}
+          style={[styles.decisionBtn, styles.refuserBtn, deciding !== null && styles.btnDisabled]}
+          onPress={() => handleDecision('refuser')}
+          disabled={deciding !== null}
           activeOpacity={0.85}
         >
-          <MaterialIcons name={meta.icon as any} size={17} color="#fff" />
-          <Text style={styles.ctaText}>
-            {scoring.decision === 'auto_validated' ? 'Finaliser' : 'Traiter l\'exception'}
-          </Text>
-          <MaterialIcons name="arrow-forward" size={17} color="#fff" />
+          {deciding === 'refuser'
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <MaterialIcons name="close" size={20} color="#fff" />}
+          <Text style={styles.decisionBtnText}>Refuser</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.decisionBtn, styles.validerBtn, deciding !== null && styles.btnDisabled]}
+          onPress={() => handleDecision('valider')}
+          disabled={deciding !== null}
+          activeOpacity={0.85}
+        >
+          {deciding === 'valider'
+            ? <ActivityIndicator size="small" color="#fff" />
+            : <MaterialIcons name="check" size={20} color="#fff" />}
+          <Text style={styles.decisionBtnText}>Valider</Text>
         </TouchableOpacity>
       </View>
     </Animated.View>
@@ -731,30 +678,19 @@ const styles = StyleSheet.create({
   // Footer
   footer: {
     position: 'absolute', bottom: 0, left: 0, right: 0,
-    padding: spacing.md, gap: 8,
+    flexDirection: 'row',
+    padding: spacing.md, gap: 10,
     backgroundColor: colors.surface,
     borderTopWidth: 1, borderTopColor: colors.border,
     ...shadows.lg,
   },
-  pdfBtn: {
-    height: 42, borderRadius: radius.md,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
-    backgroundColor: colors.surfaceAlt,
-    borderWidth: 1, borderColor: colors.borderLight,
-  },
-  pdfBtnText: { fontSize: 13, fontWeight: '600', color: colors.textSecondary },
-  archivesBtn: {
-    height: 52, borderRadius: radius.md,
-    flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 6,
-    paddingHorizontal: spacing[3],
-    backgroundColor: 'transparent',
-    borderWidth: 1, borderColor: colors.accent,
-  },
-  archivesBtnText: { fontSize: 13, fontWeight: '600', color: colors.accent },
-  ctaBtn: {
-    height: 52, borderRadius: radius.md,
+  decisionBtn: {
+    flex: 1, height: 52, borderRadius: radius.md,
     flexDirection: 'row', justifyContent: 'center', alignItems: 'center', gap: 8,
     ...shadows.sm,
   },
-  ctaText: { ...typography.button, color: '#fff', fontSize: 14 },
+  refuserBtn:  { backgroundColor: colors.error },
+  validerBtn:  { backgroundColor: colors.success },
+  btnDisabled: { opacity: 0.6 },
+  decisionBtnText: { fontSize: 15, fontWeight: '700', color: '#fff' },
 });

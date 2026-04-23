@@ -20,6 +20,7 @@ export interface MonitoringSummary {
 
 export interface SubscriptionItem {
   id: string;
+  companyId?: string;
   companyName: string;
   plan: string;
   billingCycle: string;
@@ -27,8 +28,35 @@ export interface SubscriptionItem {
   priceCents: number;
   currency: string;
   seats: number;
+  maxAccounts?: number;
+  maxShops?: number;
+  features?: string[];
+  currentPeriodStart?: string;
   currentPeriodEnd: string;
   owner?: { firstName?: string; lastName?: string; email?: string };
+}
+
+export interface ShopItem {
+  id: string;
+  name: string;
+  code?: string;
+  address?: string;
+  city?: string;
+  isActive: boolean;
+  users?: { id: string; firstName: string; lastName: string }[];
+}
+
+export interface UserItem {
+  id: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  role: string;
+  isActive: boolean;
+  isBlocked?: boolean;
+  lastLogin?: string | null;
+  createdAt: string;
+  shops?: { id: string; name: string }[];
 }
 
 export interface PaymentItem {

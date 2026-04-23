@@ -343,7 +343,7 @@ function buildHtml(input: ReportInput): string {
     }
 
     .header {
-      background: linear-gradient(135deg, #11284f 0%, #1e4f91 100%);
+      background: linear-gradient(135deg, #0A1628 0%, #11284f 60%, #1e4f91 100%);
       border-radius: 14px;
       padding: 22px 24px;
       color: #fff;
@@ -369,23 +369,57 @@ function buildHtml(input: ReportInput): string {
     }
 
     .eyebrow {
-      font-size: 10px;
+      font-size: 9px;
       text-transform: uppercase;
       letter-spacing: 1.7px;
-      opacity: 0.72;
-      margin-bottom: 6px;
+      opacity: 0.6;
+      margin-bottom: 10px;
+    }
+
+    .logo-lockup {
+      display: flex;
+      flex-direction: row;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .brand-text {
+      display: flex;
+      flex-direction: column;
     }
 
     .brand {
-      font-size: 24px;
+      font-size: 26px;
       font-weight: 800;
-      letter-spacing: 0.5px;
-      margin-bottom: 3px;
+      letter-spacing: 2px;
+      margin-bottom: 0;
+      line-height: 1.1;
+    }
+
+    .brand-accent {
+      color: #BFA063;
+    }
+
+    .brand-sep {
+      height: 1px;
+      background: #BFA063;
+      margin: 4px 0;
+      opacity: 0.7;
+    }
+
+    .brand-tagline {
+      font-size: 7.5px;
+      letter-spacing: 4px;
+      opacity: 0.65;
+      font-weight: 300;
+      text-transform: uppercase;
     }
 
     .subtitle {
-      font-size: 12px;
-      opacity: 0.84;
+      font-size: 11px;
+      opacity: 0.75;
+      margin-top: 4px;
     }
 
     .identity-strip {
@@ -649,8 +683,18 @@ function buildHtml(input: ReportInput): string {
   <div class="header">
     <div class="header-grid">
       <div class="header-left">
-        <div class="eyebrow">Compte rendu professionnel de conformité</div>
-        <div class="brand">KONFIRM</div>
+        <div class="eyebrow">Compte rendu professionnel de conformité LCB-FT</div>
+        <div class="logo-lockup">
+          <svg xmlns="http://www.w3.org/2000/svg" width="42" height="42" viewBox="0 0 40 40" style="flex-shrink:0">
+            <polygon points="20,2 38,20 20,38 2,20" stroke="#BFA063" stroke-width="1.5" fill="none"/>
+            <text x="20" y="27" text-anchor="middle" font-size="20" font-family="Georgia, 'Times New Roman', serif" fill="white">K</text>
+          </svg>
+          <div class="brand-text">
+            <div class="brand"><span class="brand-accent">K</span>onfirme</div>
+            <div class="brand-sep"></div>
+            <div class="brand-tagline">Compliance Intelligence</div>
+          </div>
+        </div>
         <div class="subtitle">Synthèse complète des recherches, retours scrappés, validations et arbitrages du dossier</div>
       </div>
       <div class="header-right">
@@ -812,8 +856,9 @@ function buildHtml(input: ReportInput): string {
 
   <div class="footer-note">
     <div>
-      <div><strong>KONFIRM</strong> · Compte rendu de conformité</div>
-      <div>Document interne confidentiel généré automatiquement le ${escapeHtml(formatDateTime(new Date()))}</div>
+      <div><strong>Konfirme</strong> · Compliance Intelligence · Compte rendu de conformité LCB-FT</div>
+      <div>Document confidentiel généré et archivé automatiquement le ${escapeHtml(formatDateTime(new Date()))}</div>
+      <div>Conservation légale 5 ans — Art. L. 561-12 CMF · Directive UE 2015/849</div>
     </div>
     <div class="right">
       <div>Dossier ${escapeHtml(input.dossierId)}</div>

@@ -95,6 +95,28 @@ export async function uploadPdfPourArchivage(
 }
 
 /**
+ * Demande au backend de générer + archiver le PDF du dossier (pdf-lib côté serveur).
+ * Retourne l'archiveId du PDF généré, utilisable pour le téléchargement.
+ */
+export async function genererPdfServeur(
+  dossierId: string,
+  token: string
+): Promise<ArchivageResult> {
+  const response = await fetch(`${API_BASE}/archivage/${dossierId}/generer`, {
+    method: 'POST',
+    headers: { ...headers(token), 'Content-Type': 'application/json' },
+  });
+
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err?.error?.message ?? `Génération PDF échouée (${response.status})`);
+  }
+
+  const json = await response.json();
+  return json.data as ArchivageResult;
+}
+
+/**
  * Récupère la liste des archives d'un dossier.
  */
 export async function getArchivesDossier(

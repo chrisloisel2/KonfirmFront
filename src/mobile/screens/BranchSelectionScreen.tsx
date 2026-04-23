@@ -43,8 +43,8 @@ export default function BranchSelectionScreen() {
   };
 
   const roleLabel: Record<string, string> = {
-    conseiller: 'Conseiller', caisse: 'Caisse',
-    referent: 'Référent LCB-FT', responsable: 'Responsable', admin: 'Administrateur',
+    caisse: 'Caisse',
+    referent: 'Référent LCB-FT', responsable: 'Responsable',
   };
   const effectiveRole = selectedRole ?? user?.role;
 

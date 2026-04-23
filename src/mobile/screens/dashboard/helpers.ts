@@ -21,6 +21,14 @@ export function personName(person?: { firstName?: string; lastName?: string; ema
 }
 
 export const STATUS_META: Record<string, { label: string; color: string; bg: string }> = {
+  // Statuts dossier
+  BROUILLON:          { label: 'Brouillon',         color: '#64748B', bg: '#F1F5F9' },
+  EN_COURS:           { label: 'En cours',           color: '#8A6800', bg: '#FEF5DC' },
+  ATTENTE_VALIDATION: { label: 'Attente validation', color: '#7C3AED', bg: '#F5F3FF' },
+  VALIDE:             { label: 'Validé',             color: '#1A6B50', bg: '#E6F4EF' },
+  REJETE:             { label: 'Rejeté',             color: '#8B1C1C', bg: '#FDEDED' },
+  ARCHIVE:            { label: 'Archivé',            color: '#4A5E74', bg: '#F0EDE5' },
+  // Statuts abonnement / paiement
   ACTIVE:    { label: 'Actif',      color: '#1A6B50', bg: '#E6F4EF' },
   PAST_DUE:  { label: 'Échu',       color: '#8A6800', bg: '#FEF5DC' },
   SUSPENDED: { label: 'Suspendu',   color: '#8B1C1C', bg: '#FDEDED' },

@@ -1,6 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
-  View, StyleSheet, ScrollView, TouchableOpacity, StatusBar,
+  View, StyleSheet, ScrollView, TouchableOpacity, StatusBar, Alert,
 } from 'react-native';
 import { Text, ActivityIndicator } from 'react-native-paper';
 import { useNavigation, useRoute } from '@react-navigation/native';
@@ -8,7 +8,10 @@ import { MaterialIcons } from '@expo/vector-icons';
 import { Exception, Recherche, ScoringResult } from '../../shared/types';
 import { colors, spacing, radius, shadows, typography } from '../../shared/theme/theme';
 import AppHeader from '../components/AppHeader';
-import { generateAndSharePDF, ReportInput } from '../../shared/services/pdfReportService';
+import { ReportInput } from '../../shared/services/pdfReportService';
+import { genererPdfServeur, telechargerPdfArchive } from '../../shared/services/archivageApiService';
+import { useAuth } from '../../shared/services/AuthContext';
+import { API_BASE } from '../../shared/config/api';
 
 type FinalStatus = 'validated' | 'escalated' | 'blocked' | 'under_review';
 
@@ -26,28 +29,28 @@ interface RouteParams {
 const STATUS_META: Record<FinalStatus, { title: string; subtitle: string; color: string; bg: string; icon: string }> = {
   validated: {
     title: 'Dossier validé',
-    subtitle: 'Le compte rendu final peut être généré et archivé.',
+    subtitle: 'Le rapport de conformité sera généré et archivé automatiquement à la clôture.',
     color: colors.success,
     bg: colors.successLight,
     icon: 'verified',
   },
   escalated: {
     title: 'Dossier escaladé',
-    subtitle: 'Le dossier a été orienté vers un niveau de décision supérieur.',
+    subtitle: 'Le dossier est orienté vers un niveau de décision supérieur. Le rapport sera archivé.',
     color: '#7C3AED',
     bg: '#F5F3FF',
     icon: 'call-made',
   },
   blocked: {
     title: 'Dossier bloqué',
-    subtitle: 'La situation nécessite conservation et traçabilité immédiates.',
+    subtitle: 'Mesure conservatoire activée. Le rapport sera généré et archivé à la clôture.',
     color: colors.error,
     bg: colors.errorLight,
     icon: 'block',
   },
   under_review: {
     title: 'Dossier en revue',
-    subtitle: 'Le dossier doit être complété ou arbitrée avant clôture.',
+    subtitle: 'Des compléments sont requis avant clôture définitive.',
     color: colors.warning,
     bg: colors.warningLight,
     icon: 'pending-actions',
@@ -153,11 +156,36 @@ function buildReportPayload(params: RouteParams): ReportInput {
   };
 }
 
+const FINAL_STATUS_TO_BACKEND: Record<FinalStatus, string[]> = {
+  validated:    ['VALIDE'],
+  blocked:      ['REJETE'],
+  escalated:    ['ATTENTE_VALIDATION'],
+  under_review: ['ATTENTE_VALIDATION'],
+};
+
+async function persistDossierStatus(dossierId: string, finalStatus: FinalStatus, token: string): Promise<void> {
+  const transitions = FINAL_STATUS_TO_BACKEND[finalStatus];
+  const headers = { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+  for (const status of transitions) {
+    const res = await fetch(`${API_BASE}/dossiers/${dossierId}`, {
+      method: 'PATCH',
+      headers,
+      body: JSON.stringify({ status }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => null);
+      throw new Error(err?.message || `Échec mise à jour statut ${status}`);
+    }
+  }
+}
+
+
 export default function ValidationFinalScreen() {
   const navigation = useNavigation<any>();
   const route = useRoute();
   const params = (route.params as RouteParams) || {};
-  const [pdfLoading, setPdfLoading] = useState(false);
+  const { token } = useAuth();
+  const [terminating, setTerminating] = useState(false);
 
   const reportInput = useMemo(() => buildReportPayload(params), [params]);
   const status = params.finalStatus || 'validated';
@@ -170,18 +198,6 @@ export default function ValidationFinalScreen() {
 
   const alertCount = verificationResults.filter((item) => item.status === 'alert' && !item.overriddenByUser).length;
   const warningCount = verificationResults.filter((item) => item.status === 'warning' && !item.overriddenByUser).length;
-
-  const shareReport = async () => {
-    if (pdfLoading) return;
-    setPdfLoading(true);
-    try {
-      await generateAndSharePDF(reportInput);
-    } catch (error) {
-      console.error('Erreur de génération du compte rendu PDF', error);
-    } finally {
-      setPdfLoading(false);
-    }
-  };
 
   return (
     <View style={styles.root}>
@@ -272,17 +288,36 @@ export default function ValidationFinalScreen() {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={[styles.secondaryBtn, pdfLoading && styles.disabledBtn]}
-          onPress={shareReport}
-          disabled={pdfLoading}
-          activeOpacity={0.85}
-        >
-          {pdfLoading ? <ActivityIndicator size="small" color={colors.primary} /> : <MaterialIcons name="picture-as-pdf" size={18} color={colors.primary} />}
-          <Text style={styles.secondaryBtnText}>{pdfLoading ? 'Génération…' : 'Générer le compte rendu'}</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => navigation.navigate('Dashboard')}
+          style={[styles.primaryBtn, styles.fullWidthBtn, terminating && styles.disabledBtn]}
+          onPress={() => {
+            if (terminating) return;
+            const dossierId = params.dossierId;
+            if (!dossierId || !token) {
+              Alert.alert('Erreur', 'Dossier ou session invalide');
+              return;
+            }
+
+            setTerminating(true);
+
+            // Mise à jour du statut en arrière-plan (non bloquante)
+            persistDossierStatus(dossierId, status, token)
+              .catch(err => console.warn('Statut dossier:', err?.message));
+
+            // Génération du PDF en arrière-plan (non bloquante)
+            genererPdfServeur(dossierId, token)
+              .then(result =>
+                telechargerPdfArchive(
+                  dossierId,
+                  result.archiveId,
+                  `rapport-lcbft-${dossierId}.pdf`,
+                  token
+                )
+              )
+              .catch(err => console.warn('PDF background:', err?.message));
+
+            // Navigation immédiate vers la page d'accueil
+            navigation.reset({ index: 0, routes: [{ name: 'Dashboard' }] });
+          }}
           activeOpacity={0.85}
         >
           <MaterialIcons name="done-all" size={18} color="#fff" />
@@ -296,7 +331,10 @@ export default function ValidationFinalScreen() {
 function formatStructuredResult(value: unknown): string {
   if (value == null) return 'Aucun détail structuré retourné.';
   if (typeof value === 'string') return value;
-  if (typeof value === 'number' || typeof value === 'boolean') return String(value);
+  if (typeof value === 'boolean') return String(value);
+  if (typeof value === 'number') {
+    return Number.isInteger(value) ? String(value) : value.toFixed(2);
+  }
   if (Array.isArray(value)) {
     if (value.length === 0) return 'Aucun élément retourné.';
     return value.slice(0, 5).map((item) => formatStructuredResult(item)).join(' · ');
@@ -421,27 +459,12 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     padding: spacing.md,
-    flexDirection: 'row',
-    gap: 10,
     backgroundColor: colors.surface,
     borderTopWidth: 1,
     borderTopColor: colors.border,
     ...shadows.lg,
   },
-  secondaryBtn: {
-    flex: 1,
-    height: 52,
-    borderRadius: radius.md,
-    borderWidth: 1.5,
-    borderColor: colors.primary,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: 8,
-  },
-  secondaryBtnText: { fontSize: 13, fontWeight: '700', color: colors.primary },
   primaryBtn: {
-    flex: 1,
     height: 52,
     borderRadius: radius.md,
     backgroundColor: colors.primary,
@@ -450,6 +473,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 8,
   },
+  fullWidthBtn: { width: '100%', alignSelf: 'stretch' },
   primaryBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
   disabledBtn: { opacity: 0.6 },
 });

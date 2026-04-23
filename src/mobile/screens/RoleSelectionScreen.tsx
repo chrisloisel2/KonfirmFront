@@ -8,14 +8,6 @@ import { MaterialIcons } from '@expo/vector-icons';
 
 const ROLES = [
   {
-    key: 'conseiller' as UserRole,
-    label: 'Conseiller',
-    description: 'Création et suivi des dossiers clients',
-    icon: 'person-outline' as const,
-    accent: '#2563EB',
-    bg: '#EFF6FF',
-  },
-  {
     key: 'caisse' as UserRole,
     label: 'Caisse',
     description: 'Opérations de caisse et transactions',
