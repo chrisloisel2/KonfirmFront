@@ -188,78 +188,87 @@ export default function DocumentCaptureScreen() {
     const API = `${API_BASE}/documents/extract-identity`;
     const dt  = docType ?? 'cni';
 
-    // ── Tentative 1 : multipart  ────────────────────────────────────────────
+    const ocrAbort = new AbortController();
+    const ocrTimer = setTimeout(() => ocrAbort.abort(), 110_000); // 110s — under nginx 120s limit
+
     try {
-      const formData = new FormData();
+      // ── Tentative 1 : multipart  ──────────────────────────────────────────
+      try {
+        const formData = new FormData();
 
-      if (Platform.OS === 'web') {
-        // Sur web, photoUri est une blob: ou data: URL → fetch → Blob → File
-        const blobRes  = await fetch(photoUri);
-        const blob     = await blobRes.blob();
-        const mimeType = blob.type || 'image/jpeg';
-        const ext      = mimeType.split('/')[1] ?? 'jpg';
-        const file     = new File([blob], `id_photo.${ext}`, { type: mimeType });
-        formData.append('image', file);
-      } else {
-        // Sur iOS/Android, React Native gère les URI fichier nativement
-        const ext  = photoUri.split('.').pop()?.toLowerCase() ?? 'jpg';
-        const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
-        formData.append('image', { uri: photoUri, type: mime, name: `id_photo.${ext}` } as any);
+        if (Platform.OS === 'web') {
+          // Sur web, photoUri est une blob: ou data: URL → fetch → Blob → File
+          const blobRes  = await fetch(photoUri);
+          const blob     = await blobRes.blob();
+          const mimeType = blob.type || 'image/jpeg';
+          const ext      = mimeType.split('/')[1] ?? 'jpg';
+          const file     = new File([blob], `id_photo.${ext}`, { type: mimeType });
+          formData.append('image', file);
+        } else {
+          // Sur iOS/Android, React Native gère les URI fichier nativement
+          const ext  = photoUri.split('.').pop()?.toLowerCase() ?? 'jpg';
+          const mime = ext === 'webp' ? 'image/webp' : ext === 'png' ? 'image/png' : 'image/jpeg';
+          formData.append('image', { uri: photoUri, type: mime, name: `id_photo.${ext}` } as any);
+        }
+
+        formData.append('docType', dt);
+
+        const res  = await fetch(API, { method: 'POST', headers, body: formData, signal: ocrAbort.signal });
+        const json = await res.json();
+
+        if (res.status === 401 || res.status === 403) {
+          throw new AuthSessionError(json?.message || json?.error || 'Session expirée');
+        }
+
+        if (json.success && json.data?.nom) return json.data;
+        // Si multer a reçu le fichier mais OCR vide → tenter base64
+      } catch (e) {
+        if (e instanceof AuthSessionError) throw e;
+        if (ocrAbort.signal.aborted) throw new Error('OCR timeout');
+        console.warn('[OCR] multipart failed, trying base64:', e);
       }
 
-      formData.append('docType', dt);
+      // ── Tentative 2 : JSON base64 ─────────────────────────────────────────
+      try {
+        let base64: string;
 
-      const res  = await fetch(API, { method: 'POST', headers, body: formData });
-      const json = await res.json();
+        if (Platform.OS === 'web') {
+          const blobRes = await fetch(photoUri);
+          const blob    = await blobRes.blob();
+          base64 = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
+            reader.onerror   = reject;
+            reader.readAsDataURL(blob);
+          });
+        } else {
+          base64 = await FileSystem.readAsStringAsync(photoUri, {
+            encoding: 'base64',
+          });
+        }
 
-      if (res.status === 401 || res.status === 403) {
-        throw new AuthSessionError(json?.message || json?.error || 'Session expirée');
-      }
-
-      if (json.success && json.data?.nom) return json.data;
-      // Si multer a reçu le fichier mais OCR vide → tenter base64
-    } catch (e) {
-      if (e instanceof AuthSessionError) throw e;
-      console.warn('[OCR] multipart failed, trying base64:', e);
-    }
-
-    // ── Tentative 2 : JSON base64 ───────────────────────────────────────────
-    try {
-      let base64: string;
-
-      if (Platform.OS === 'web') {
-        const blobRes = await fetch(photoUri);
-        const blob    = await blobRes.blob();
-        base64 = await new Promise<string>((resolve, reject) => {
-          const reader = new FileReader();
-          reader.onloadend = () => resolve((reader.result as string).split(',')[1]);
-          reader.onerror   = reject;
-          reader.readAsDataURL(blob);
+        const res  = await fetch(`${API}-base64`, {
+          method:  'POST',
+          headers: { ...headers, 'Content-Type': 'application/json' },
+          body:    JSON.stringify({ image: base64, docType: dt }),
+          signal:  ocrAbort.signal,
         });
-      } else {
-        base64 = await FileSystem.readAsStringAsync(photoUri, {
-          encoding: 'base64',
-        });
+        const json = await res.json();
+
+        if (res.status === 401 || res.status === 403) {
+          throw new AuthSessionError(json?.message || json?.error || 'Session expirée');
+        }
+
+        if (json.success) return json.data ?? null;
+      } catch (e) {
+        if (e instanceof AuthSessionError) throw e;
+        console.warn('[OCR] base64 fallback also failed:', e);
       }
 
-      const res  = await fetch(`${API}-base64`, {
-        method:  'POST',
-        headers: { ...headers, 'Content-Type': 'application/json' },
-        body:    JSON.stringify({ image: base64, docType: dt }),
-      });
-      const json = await res.json();
-
-      if (res.status === 401 || res.status === 403) {
-        throw new AuthSessionError(json?.message || json?.error || 'Session expirée');
-      }
-
-      if (json.success) return json.data ?? null;
-    } catch (e) {
-      if (e instanceof AuthSessionError) throw e;
-      console.warn('[OCR] base64 fallback also failed:', e);
+      return null;
+    } finally {
+      clearTimeout(ocrTimer);
     }
-
-    return null;
   };
 
   // ── Flash ────────────────────────────────────────────────────────────────────
