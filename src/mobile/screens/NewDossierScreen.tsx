@@ -146,6 +146,7 @@ export default function NewDossierScreen() {
   const { token, logout } = useAuth();
   const [showIntermediaireDetails, setShowIntermediaireDetails] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
+  const [identityMode, setIdentityMode] = useState<'scan' | 'manual'>('scan');
 
   const { control, handleSubmit, watch, formState: { errors, isValid } } = useForm<NewDossierForm>({
     resolver: yupResolver(schema) as any,
@@ -268,11 +269,21 @@ export default function NewDossierScreen() {
         seuilLCBFT: seuilInfo?.type || 'sans_seuil',
       };
 
-      // @ts-ignore
-      navigation.navigate('DocumentCapture', {
-        docType: data.docType,
-        dossierData,
-      });
+      if (identityMode === 'scan') {
+        // @ts-ignore
+        navigation.navigate('DocumentCapture', {
+          docType: data.docType,
+          dossierData,
+        });
+      } else {
+        // @ts-ignore
+        navigation.navigate('IdentityVerification', {
+          identityData: null,
+          dossierData,
+          docType: data.docType,
+          manualEntry: true,
+        });
+      }
     } catch (error) {
       if (error instanceof AuthSessionError) {
         await logout();
@@ -649,11 +660,42 @@ export default function NewDossierScreen() {
         </SectionCard>
 
         {/* Step 5 — Pièce d'identité */}
-        <SectionCard step="5" title="Pièce d'identité à scanner">
-          <View style={styles.docNotice}>
-            <MaterialIcons name="camera-alt" size={14} color={colors.info} />
-            <Text style={styles.docNoticeText}>Une photo sera requise après validation</Text>
+        <SectionCard step="5" title="Pièce d'identité">
+          {/* Mode selection */}
+          <View style={styles.modeRow}>
+            <TouchableOpacity
+              style={[styles.modeTile, identityMode === 'scan' && styles.modeTileSelected]}
+              onPress={() => setIdentityMode('scan')}
+              activeOpacity={0.75}
+            >
+              <MaterialIcons name="camera-alt" size={18} color={identityMode === 'scan' ? colors.accent : colors.textTertiary} />
+              <Text style={[styles.modeLabel, identityMode === 'scan' && styles.modeLabelSelected]}>Scanner</Text>
+              <Text style={styles.modeSub}>Photo automatique</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.modeTile, identityMode === 'manual' && styles.modeTileSelected]}
+              onPress={() => setIdentityMode('manual')}
+              activeOpacity={0.75}
+            >
+              <MaterialIcons name="edit" size={18} color={identityMode === 'manual' ? colors.accent : colors.textTertiary} />
+              <Text style={[styles.modeLabel, identityMode === 'manual' && styles.modeLabelSelected]}>Saisie manuelle</Text>
+              <Text style={styles.modeSub}>Remplir le formulaire</Text>
+            </TouchableOpacity>
           </View>
+
+          <View style={[styles.docNotice, { backgroundColor: identityMode === 'scan' ? colors.infoLight : colors.warningLight }]}>
+            <MaterialIcons
+              name={identityMode === 'scan' ? 'camera-alt' : 'info'}
+              size={14}
+              color={identityMode === 'scan' ? colors.info : colors.warning}
+            />
+            <Text style={[styles.docNoticeText, { color: identityMode === 'scan' ? colors.info : colors.warning }]}>
+              {identityMode === 'scan'
+                ? 'Une photo sera requise après validation'
+                : 'Vous devrez lancer une vérification après la saisie'}
+            </Text>
+          </View>
+
           <Controller
             control={control} name="docType"
             render={({ field: { onChange, value } }) => (
@@ -703,8 +745,11 @@ export default function NewDossierScreen() {
             onPress={handleSubmit(onSubmit)}
             disabled={!isValid || isCreating}
           >
-            <MaterialIcons name="camera-alt" size={18} color="#fff" />
-            <Text style={styles.submitText}>{isCreating ? 'Création du dossier…' : 'Scanner la pièce d\'identité'}</Text>
+            <MaterialIcons name={identityMode === 'scan' ? 'camera-alt' : 'edit'} size={18} color="#fff" />
+            <Text style={styles.submitText}>
+              {isCreating ? 'Création du dossier…' :
+               identityMode === 'scan' ? 'Scanner la pièce d\'identité' : 'Saisir les informations'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -969,6 +1014,22 @@ const styles = StyleSheet.create({
     height: 56,
     textAlignVertical: 'top',
   },
+
+  // Identity mode selection
+  modeRow: { flexDirection: 'row', gap: 8, marginBottom: spacing.sm },
+  modeTile: {
+    flex: 1,
+    alignItems: 'center',
+    borderWidth: 1.5,
+    borderColor: colors.border,
+    borderRadius: radius.md,
+    padding: spacing.sm,
+    gap: 2,
+  },
+  modeTileSelected: { borderColor: colors.accent, backgroundColor: colors.accentLight },
+  modeLabel: { fontSize: 12, fontWeight: '600', color: colors.textSecondary, textAlign: 'center' },
+  modeLabelSelected: { color: colors.accent },
+  modeSub: { fontSize: 10, color: colors.textTertiary, textAlign: 'center' },
 
   // Document selection
   docNotice: {

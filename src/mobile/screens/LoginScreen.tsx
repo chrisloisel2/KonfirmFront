@@ -37,7 +37,7 @@ export default function LoginScreen() {
 			if (!result.success) {
 				Alert.alert('Connexion refusée', result.error || 'Identifiants incorrects.');
 			}
-		} catch {
+		} catch {mù
 			Alert.alert('Erreur réseau', 'Impossible de joindre le serveur.');
 		} finally {
 			setLoading(false);

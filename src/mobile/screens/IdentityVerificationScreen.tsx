@@ -54,6 +54,7 @@ interface RouteParams {
   dossierData: any;
   docType: 'cni' | 'passeport';
   photoUri?: string;
+  manualEntry?: boolean;
 }
 
 class AuthSessionError extends Error {
@@ -142,7 +143,7 @@ export default function IdentityVerificationScreen() {
   const navigation = useNavigation();
   const route = useRoute();
   const { token, logout } = useAuth();
-  const { identityData, dossierData, docType, photoUri } = (route.params as RouteParams) || {};
+  const { identityData, dossierData, docType, photoUri, manualEntry } = (route.params as RouteParams) || {};
 
   const [identity, setIdentity] = useState<IdentityData>({
     nom:            identityData?.nom ?? '',
@@ -159,7 +160,7 @@ export default function IdentityVerificationScreen() {
   const [isPersisting, setIsPersisting] = useState(false);
   const [editField, setEditField]   = useState<string | null>(null);
   const [expanded, setExpanded]     = useState<string | null>(null);
-  const [tab, setTab]               = useState<'results' | 'identity'>('results');
+  const [tab, setTab]               = useState<'results' | 'identity'>(!identityData?.nom ? 'identity' : 'results');
 
   const scoreAnim = useRef(new Animated.Value(0)).current;
   const fadeAnim  = useRef(new Animated.Value(0)).current;
@@ -294,7 +295,9 @@ export default function IdentityVerificationScreen() {
         </TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={styles.headerTitle}>Vérification d'identité</Text>
-          <Text style={styles.headerSub}>{docType === 'cni' ? 'Carte nationale d\'identité' : 'Passeport'}</Text>
+          <Text style={styles.headerSub}>
+            {manualEntry ? 'Saisie manuelle' : docType === 'cni' ? 'Carte nationale d\'identité' : 'Passeport'}
+          </Text>
         </View>
         {identityData?.source && (
           <View style={styles.sourceBadge}>
@@ -442,11 +445,24 @@ export default function IdentityVerificationScreen() {
               </View>
             )}
             {!identityData?.nom && (
-              <View style={[styles.ocrBanner, { backgroundColor: colors.errorLight, borderColor: colors.error + '30' }]}>
-                <MaterialIcons name="error-outline" size={15} color={colors.error} />
+              <View style={[styles.ocrBanner, {
+                backgroundColor: manualEntry ? colors.infoLight : colors.errorLight,
+                borderColor: (manualEntry ? colors.info : colors.error) + '30',
+              }]}>
+                <MaterialIcons
+                  name={manualEntry ? 'edit' : 'error-outline'}
+                  size={15}
+                  color={manualEntry ? colors.info : colors.error}
+                />
                 <View style={{ flex: 1 }}>
-                  <Text style={[styles.ocrBannerTitle, { color: colors.error }]}>Extraction échouée</Text>
-                  <Text style={styles.ocrBannerSub}>Saisissez les données manuellement</Text>
+                  <Text style={[styles.ocrBannerTitle, { color: manualEntry ? colors.info : colors.error }]}>
+                    {manualEntry ? 'Saisie manuelle' : 'Extraction échouée'}
+                  </Text>
+                  <Text style={styles.ocrBannerSub}>
+                    {manualEntry
+                      ? 'Renseignez les données d\'identité puis lancez la vérification'
+                      : 'Saisissez les données manuellement'}
+                  </Text>
                 </View>
               </View>
             )}
