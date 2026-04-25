@@ -166,15 +166,7 @@ export default function NewDossierScreen() {
 
   // Logique des seuils LCB-FT selon GODECHOT PAULIET
   const getSeuilInfo = () => {
-    if (montantNum >= 15000) {
-      return {
-        label: 'Client occasionnel - Vigilance renforcée (≥ 15 000€)',
-        color: colors.error,
-        bg: colors.errorLight,
-        icon: 'warning',
-        type: 'occasionnel'
-      };
-    } else if (montantNum >= 10000) {
+    if (montantNum >= 10000) {
       return {
         label: 'Relation d\'affaires - Seuil standard (≥ 10 000€)',
         color: colors.warning,
@@ -732,7 +724,7 @@ export default function NewDossierScreen() {
           <View style={[styles.complianceIndicator, { backgroundColor: seuilInfo.bg }]}>
             <MaterialIcons name={seuilInfo.icon as any} size={16} color={seuilInfo.color} />
             <Text style={[styles.complianceText, { color: seuilInfo.color }]}>
-              Conformité LCB-FT : {seuilInfo.type === 'occasionnel' ? 'Client occasionnel' : 'Relation d\'affaires'}
+              Conformité LCB-FT : Relation d'affaires
             </Text>
           </View>
         )}
